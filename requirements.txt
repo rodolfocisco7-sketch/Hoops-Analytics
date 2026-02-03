@@ -1,9 +1,9 @@
-streamlit==1.32.0
-pandas==2.2.0
-plotly==5.18.0
-requests==2.31.0
-nba_api==1.4.1
-numpy==1.26.0
-scikit-learn==1.4.0
+streamlit
+pandas
+plotly
+requests
+nba_api
+numpy
+scikit-learn
 xgboost
 curl_cffi
