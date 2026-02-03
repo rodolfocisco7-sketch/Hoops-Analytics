@@ -5,3 +5,5 @@ requests==2.31.0
 nba_api==1.4.1
 numpy==1.26.0
 scikit-learn==1.4.0
+xgboost
+curl_cffi
