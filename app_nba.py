@@ -19,6 +19,12 @@ from sklearn.preprocessing import StandardScaler
 from curl_cffi import requests
 import xgboost as xgb 
 
+from datetime import datetime, timedelta
+import pytz
+
+def obtener_fecha_panama():
+    return datetime.now(pytz.timezone('America/Panama'))
+
 st.markdown("""
 <style>
     @keyframes jump {
@@ -70,8 +76,8 @@ st.set_page_config(
 CONFIG = {
     'NUM_PARTIDOS_DEFECTO': 7,
     'TIMEOUT_SCRAPING': 15,
-    'DELAY_MIN': 0.5,
-    'DELAY_MAX': 1.0,
+    'DELAY_MIN': 0.2,
+    'DELAY_MAX': 0.4,
     'HORAS_OFFSET_PANAMA': 6
 }
 
@@ -1155,7 +1161,7 @@ def obtener_datos_partido(nombre_equipo):
         
         for dias_adelante in range(8):
             try:
-                fecha_busqueda = datetime.now() + timedelta(days=dias_adelante)
+                fecha_busqueda = obtener_fecha_panama() + timedelta(days=dias_adelante)
                 fecha_str = fecha_busqueda.strftime('%m/%d/%Y')
                 
                 sb = scoreboardv2.ScoreboardV2(game_date=fecha_str)
@@ -1655,7 +1661,7 @@ def detectar_regresos_lesion(df_equipo, dias_umbral=10):
                 if dias_gap > dias_umbral:
                     # Este jugador estuvo fuera
                     ultimo_partido = fechas[i]
-                    dias_desde_regreso = (datetime.now() - ultimo_partido).days
+                    dias_desde_regreso = (obtener_fecha_panama().replace(tzinfo=None) - ultimo_partido).days
                     
                     if dias_desde_regreso <= 7:  # Regresó hace menos de una semana
                         stats_pre_lesion = df_jug[df_jug['Fecha'] < fechas[i-1]].tail(3)
@@ -1812,7 +1818,6 @@ if btn_cargar:
     all_data = []
     equipos_a_scrapear = [equipo_sel]
     
-    # Detectar rival si existe contexto
     if 'rival_nombre' in st.session_state and st.session_state.rival_nombre in JUGADORES_DB:
         equipos_a_scrapear.append(st.session_state.rival_nombre)
     
@@ -1822,25 +1827,24 @@ if btn_cargar:
     for equipo in equipos_a_scrapear:
         jugadores = JUGADORES_DB[equipo]
         for nombre, info in jugadores.items():
-            # 1. Actualizar Interfaz con el diseño de Rodolfo Cisco
+            # 1. Actualizar Interfaz (Mantenemos tu diseño)
             pct = (contador / total_jugadores) * 100
             with container_carga.container():
                 mostrar_interfaz_carga(nombre, equipo, pct, total_jugadores, contador)
             
-            # 2. Ejecutar Scraping
+            # 2. Ejecutar Scraping (Aquí es donde aplicaste el time.sleep rápido de 0.2-0.4)
             df_p = scrapear_jugador(info['id'], nombre, equipo, cantidad=7)
             if not df_p.empty:
                 all_data.append(df_p)
             
             contador += 1
-            # Pequeña pausa opcional para suavizar la animación
-            time.sleep(0.05)
-
-    # Limpiar pantalla de carga
+            # ELIMINADO: time.sleep(0.05) <- Ya no es necesario, el scraper ya da la pausa
+            
     container_carga.empty()
     
     if all_data:
         df_final = pd.concat(all_data, ignore_index=True)
+        # Optimizamos la limpieza de datos
         df_final = df_final.sort_values(['Jugador', 'Timestamp'])
         df_final['Dias_Descanso'] = df_final.groupby('Jugador')['Fecha'].diff().dt.days
         
@@ -2063,5 +2067,6 @@ if "df_equipo" in st.session_state:
 
     # streamlit run app_nba.py
     # .\Hoops_Analytics\Scripts\Activate.ps1
+
 
     
