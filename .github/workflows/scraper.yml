@@ -43,4 +43,11 @@ jobs:
         git config --global user.name 'GitHub Actions Bot'
         git config --global user.email 'actions@github.com'
         git add data/
-        git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Auto-update data $(date +'%Y-%m-%d %H:%M UTC')" && git push)
+        # Verificamos si hay cambios para no hacer commits vacíos
+        if [ -n "$(git status --porcelain)" ]; then
+          git pull origin main --rebase  # <--- ESTA ES LA VACUNA
+          git commit -m "🤖 Auto-update data $(date +'%Y-%m-%d %H:%M UTC')"
+          git push origin main
+        else
+          echo "No changes to commit"
+        fi
