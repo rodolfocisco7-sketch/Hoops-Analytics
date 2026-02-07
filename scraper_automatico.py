@@ -19,7 +19,7 @@ logging.basicConfig(
 
 # Importar funciones del app.py
 try:
-    from app import (
+    from app_nba import (
         scrapear_jugador, 
         obtener_jugadores_lesionados, 
         JUGADORES_DB,
