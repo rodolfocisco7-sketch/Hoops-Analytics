@@ -43,14 +43,13 @@ jobs:
         git config --global user.name 'GitHub Actions Bot'
         git config --global user.email 'actions@github.com'
         git add data/
-        
-        # Verificamos si hay cambios
-        if [ -n "$(git status --porcelain)" ]; then
-          # Sincronización forzada antes de subir
-          git fetch origin main
-          git reset --soft origin/main
+        # Solo procedemos si hay cambios reales en la carpeta data
+        if [ -n "$(git status --porcelain data/)" ]; then
           git commit -m "🤖 Auto-update data $(date +'%Y-%m-%d %H:%M UTC')"
-          git push origin main --force
+          # El truco: Usar -X theirs para que en caso de conflicto, 
+          # siempre gane la versión de los datos nuevos del bot.
+          git pull --rebase -X theirs origin main
+          git push origin main
         else
-          echo "No changes to commit"
+          echo "No hay cambios en los datos, saltando push."
         fi
