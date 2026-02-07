@@ -43,11 +43,14 @@ jobs:
         git config --global user.name 'GitHub Actions Bot'
         git config --global user.email 'actions@github.com'
         git add data/
-        # Verificamos si hay cambios para no hacer commits vacíos
+        
+        # Verificamos si hay cambios
         if [ -n "$(git status --porcelain)" ]; then
-          git pull origin main --rebase  # <--- ESTA ES LA VACUNA
+          # Sincronización forzada antes de subir
+          git fetch origin main
+          git reset --soft origin/main
           git commit -m "🤖 Auto-update data $(date +'%Y-%m-%d %H:%M UTC')"
-          git push origin main
+          git push origin main --force
         else
           echo "No changes to commit"
         fi
