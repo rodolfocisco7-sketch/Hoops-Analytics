@@ -1,0 +1,13 @@
+streamlit
+pandas
+plotly
+requests
+nba_api
+numpy
+scikit-learn
+xgboost
+curl_cffi
+pyarrow
+python-dateutil
+pytz
+tqdm
