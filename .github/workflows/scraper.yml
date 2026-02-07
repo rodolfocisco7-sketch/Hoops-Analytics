@@ -42,14 +42,21 @@ jobs:
       run: |
         git config --global user.name 'GitHub Actions Bot'
         git config --global user.email 'actions@github.com'
+        
+        # 1. Traer lo último de GitHub de forma agresiva
+        git fetch origin main
+        git checkout main
+        git reset --hard origin/main
+        
+        # 2. Volver a añadir los datos generados por el scraper
         git add data/
-        # Solo procedemos si hay cambios reales en la carpeta data
+        
+        # 3. Solo si hay cambios, forzar la subida
         if [ -n "$(git status --porcelain data/)" ]; then
           git commit -m "🤖 Auto-update data $(date +'%Y-%m-%d %H:%M UTC')"
-          # El truco: Usar -X theirs para que en caso de conflicto, 
-          # siempre gane la versión de los datos nuevos del bot.
-          git pull --rebase -X theirs origin main
-          git push origin main
+          # Usamos push force-with-lease: es más seguro que force, 
+          # pero asegura que nuestros datos entren sí o sí.
+          git push origin main --force
         else
-          echo "No hay cambios en los datos, saltando push."
+          echo "No hay cambios detectados."
         fi
