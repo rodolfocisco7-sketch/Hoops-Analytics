@@ -1764,16 +1764,33 @@ def mostrar_importancia_features(metricas_modelo):
 with st.sidebar:
     st.markdown("### 🏀 CONTROL PANEL")
     
-    # ✅ MOSTRAR METADATA
+    # Metadata
     metadata = dm.cargar_metadata()
     if metadata:
         ultima = metadata.get('ultima_actualizacion', '')
         if ultima:
             try:
                 dt = datetime.fromisoformat(ultima)
-                st.info(f"📅 Actualizado: {dt.strftime('%d/%m %H:%M')}")
+                hace_horas = (datetime.now() - dt).total_seconds() / 3600
+                
+                if hace_horas < 2:
+                    color_estado = "success"
+                    icono_estado = "✅"
+                elif hace_horas < 6:
+                    color_estado = "info"
+                    icono_estado = "ℹ️"
+                else:
+                    color_estado = "warning"
+                    icono_estado = "⏰"
+                
+                st.markdown(f"""
+                <div class="alert-{color_estado}">
+                    {icono_estado} <b>Última actualización:</b><br>
+                    <small>{dt.strftime('%d/%m %H:%M')} (hace {hace_horas:.1f}h)</small>
+                </div>
+                """, unsafe_allow_html=True)
             except:
-                st.info(f"📅 Actualizado recientemente")
+                pass
     
     equipo_sel = st.selectbox(
         "Selecciona Equipo",
@@ -1784,28 +1801,57 @@ with st.sidebar:
     st.divider()
     st.markdown("### 🏥 ESTADO DEL EQUIPO")
     
-    # ✅ CARGAR LESIONADOS DESDE BD
+    # Lesionados desde BD
     lesionados_df = dm.obtener_lesionados_equipo(equipo_sel)
     
     if not lesionados_df.empty:
-        st.warning(f"⚠️ {len(lesionados_df)} jugador(es) no disponible(s)")
-        for _, row in lesionados_df.iterrows():
-            nombre_jugador = row['Jugador']
-            razon_original = row.get('Razon', 'No especificado')
-            st.markdown(f"🏥 **{nombre_jugador}** - {razon_original}")
+        st.warning(f"⚠️ {len(lesionados_df)} no disponible(s)")
+        with st.expander("Ver detalles"):
+            for _, row in lesionados_df.iterrows():
+                st.markdown(f"🏥 **{row['Jugador']}** - {row.get('Razon', 'N/A')}")
     else:
-        st.success("✅ Equipo completo disponible")
+        st.success("✅ Equipo completo")
         
     st.session_state.lesionados_equipo = lesionados_df
     
-    # ... (resto del sidebar igual: contexto próximo partido, etc.) ...
+    st.divider()
+    st.markdown("### 🆚 PRÓXIMO PARTIDO")
+    
+    # ✅ OBTENER CONTEXTO DE PRÓXIMO JUEGO
+    contexto = obtener_datos_partido(equipo_sel)
+    
+    if contexto and contexto["hay_juego"] and contexto["rival"]:
+        st.markdown(f"""
+        <div class="alert-info">
+            <h4 style='margin:0 0 10px 0; color:#00D9FF;'>🏟️ Próximo Juego</h4>
+            <p style='font-size:16px; margin:5px 0; color:#E0F4FF;'><b>{contexto['rival']}</b></p>
+            <p style='margin:5px 0; color:#E0F4FF;'>📍 {contexto['localia']}</p>
+            <p style='margin:0; color:#00FFA3;'>📅 {contexto.get('fecha', 'Próximamente')}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.session_state.rival_nombre = contexto['rival']
+        st.session_state.localia = contexto['localia']
+        
+        # ✅ CHECKBOX PARA CARGAR RIVAL
+        if st.checkbox("📊 Comparar con rival", key="cargar_rival"):
+            st.session_state.incluir_rival = True
+        else:
+            st.session_state.incluir_rival = False
+    else:
+        st.warning("📅 Sin partidos próximos")
+        st.session_state.rival_nombre = None
+        st.session_state.incluir_rival = False
     
     st.divider()
+    st.markdown("#### 📊 Partidos a Analizar")
+    num_partidos_visualizar = st.slider("Visualizar últimos", min_value=3, max_value=10, value=7)
+    st.session_state.num_partidos_viz = num_partidos_visualizar
     
-    # ✅ BOTÓN MODIFICADO
+    st.divider()
     btn_cargar = st.button("🚀 CARGAR DATOS", use_container_width=True, type="primary")
     
-    # ✅ AGREGAR INFO DE STORAGE (DEBUG)
+    # Debug info (opcional)
     if st.checkbox("📊 Ver Info de Datos", key="debug_storage"):
         storage = dm.estadisticas_almacenamiento()
         st.json(storage)
@@ -1816,12 +1862,13 @@ with st.sidebar:
 
 if btn_cargar:
     with st.spinner("⚡ Cargando datos desde base de datos..."):
-        # ✅ LECTURA INSTANTÁNEA DE PARQUET
+        # Cargar equipo principal
         df_equipo = dm.obtener_stats_equipo(equipo_sel)
         
         if df_equipo.empty:
-            st.error("❌ No hay datos disponibles. El scraper automático se ejecuta 3 veces al día.")
-            st.info("💡 Tip: Espera a la próxima actualización o ejecuta el scraper manualmente en GitHub Actions.")
+            st.error(f"❌ No hay datos del equipo **{equipo_sel}**")
+            st.info("💡 **Ejecuta el scraper inicial:**\n```bash\npython scraper_automatico.py\n```")
+            st.warning("⏰ O espera a que GitHub Actions ejecute automáticamente (3 veces al día)")
         else:
             # Calcular días de descanso
             df_equipo = df_equipo.sort_values(['Jugador', 'Fecha'])
@@ -1831,9 +1878,12 @@ if btn_cargar:
                 .dt.days
             )
             
-            # Si hay rival, cargar también
-            if 'rival_nombre' in st.session_state and st.session_state.rival_nombre:
-                df_rival = dm.obtener_stats_equipo(st.session_state.rival_nombre)
+            # ✅ CARGAR RIVAL SI ESTÁ SELECCIONADO
+            equipos_cargados = [equipo_sel]
+            
+            if st.session_state.get('incluir_rival', False) and st.session_state.get('rival_nombre'):
+                rival = st.session_state.rival_nombre
+                df_rival = dm.obtener_stats_equipo(rival)
                 
                 if not df_rival.empty:
                     df_rival = df_rival.sort_values(['Jugador', 'Fecha'])
@@ -1843,17 +1893,18 @@ if btn_cargar:
                         .dt.days
                     )
                     df_final = pd.concat([df_equipo, df_rival], ignore_index=True)
-                    st.session_state.equipos_cargados = [equipo_sel, st.session_state.rival_nombre]
+                    equipos_cargados.append(rival)
+                    st.success(f"✅ Cargados: **{equipo_sel}** + **{rival}**")
                 else:
                     df_final = df_equipo
-                    st.session_state.equipos_cargados = [equipo_sel]
+                    st.warning(f"⚠️ No hay datos del rival (**{rival}**). Solo se cargó {equipo_sel}")
             else:
                 df_final = df_equipo
-                st.session_state.equipos_cargados = [equipo_sel]
             
             st.session_state.df_equipo = df_final
+            st.session_state.equipos_cargados = equipos_cargados
             
-            st.success(f"✅ {len(df_final)} registros cargados instantáneamente")
+            st.success(f"✅ {len(df_final)} registros | {len(df_final['Jugador'].unique())} jugadores")
             st.balloons()
             st.rerun()
 
@@ -1872,11 +1923,69 @@ if "df_equipo" in st.session_state:
         titulo_header = equipos_cargados[0]
     
     st.markdown(f"""
-    <div style='text-align:center; padding:25px; background: linear-gradient(135deg, #00D9FF, #0A4D68); 
-                border-radius:15px; margin-bottom:30px;'>
-        <h1 style='margin:0; font-size:36px; color:#05161A;'>⚡ {titulo_header}</h1>
+<style>
+    @keyframes fadeInScale {{
+        from {{ opacity: 0; transform: scale(0.95); }}
+        to {{ opacity: 1; transform: scale(1); }}
+    }}
+    
+    .main-header {{
+        text-align: center;
+        padding: clamp(15px, 3vw, 30px);
+        background: linear-gradient(135deg, #00D9FF, #0A4D68);
+        border-radius: 15px;
+        margin-bottom: 20px;
+        animation: fadeInScale 0.5s ease-out;
+        box-shadow: 0 8px 25px rgba(0, 217, 255, 0.3);
+    }}
+    
+    .brand-logo {{
+        font-size: clamp(40px, 8vw, 80px);
+        margin-bottom: 5px;
+        filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+    }}
+    
+    .brand-name {{
+        margin: 0;
+        font-size: clamp(24px, 5vw, 42px);
+        color: #FFD700;
+        font-family: 'Arial Black', sans-serif;
+        text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
+        letter-spacing: 2px;
+    }}
+    
+    .brand-subtitle {{
+        margin: 5px 0 0 0;
+        font-size: clamp(14px, 2.5vw, 18px);
+        color: #E0F4FF;
+        font-weight: 600;
+        letter-spacing: 1px;
+    }}
+    
+    .team-matchup {{
+        margin-top: 15px;
+        padding: 12px 20px;
+        background: rgba(5, 22, 26, 0.4);
+        border-radius: 25px;
+        display: inline-block;
+    }}
+    
+    .team-name {{
+        font-size: clamp(18px, 4vw, 28px);
+        color: #00FFA3;
+        font-weight: bold;
+    }}
+</style>
+
+<div class="main-header">
+    <div class="brand-logo">🏀</div>
+    <h1 class="brand-name">CANAL HOOPS ANALYTICS</h1>
+    <p class="brand-subtitle">by Rodolfo Cisco</p>
+    <div class="team-matchup">
+        <span class="team-name">{titulo_header}</span>
     </div>
-    """, unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
 
     tab1, tab2, tab3 = st.tabs(["📊 REPARTO DE EQUIPO", "🔍 ANÁLISIS INDIVIDUAL", "🏆 TOP 3"])
 
@@ -1898,78 +2007,86 @@ if "df_equipo" in st.session_state:
         st.plotly_chart(crear_grafica_apilada_mejorada(df_equipo_viz, "Asistencias", f"🎯 Asistencias: {equipo_visualizar}", colores_jugadores), use_container_width=True)
 
     with tab2:
-        st.markdown("### 🔍 Análisis Individual")
+     st.markdown("### 🔍 Análisis Individual")
+    
+    # 1. SELECTORES
+    col_sel1, col_sel2, col_sel3 = st.columns([2, 2, 1])
+    with col_sel1:
+        jugador_analisis = st.selectbox("Jugador", sorted(df["Jugador"].unique()), key="jug_t2")
+    with col_sel2:
+        metrica_focus = st.selectbox("Métrica", ["Puntos", "Rebotes", "Asistencias"], key="met_t2")
+    with col_sel3:
+        linea_over = st.number_input("Línea O/U", value=15.5, step=0.5, key="linea_t2")
+
+    df_jug_completo = df[df["Jugador"] == jugador_analisis].copy().sort_values("Fecha")
+    df_jug = df_jug_completo.tail(num_viz)
+
+    if not df_jug.empty:
+        info_jug = JUGADORES_DB.get(df_jug.iloc[0]["Equipo"], {}).get(jugador_analisis, {})
         
-        col_sel1, col_sel2, col_sel3 = st.columns([2, 2, 1])
-        with col_sel1:
-            jugador_analisis = st.selectbox("Jugador", sorted(df["Jugador"].unique()), key="jug_t2")
-        with col_sel2:
-            metrica_focus = st.selectbox("Métrica", ["Puntos", "Rebotes", "Asistencias"], key="met_t2")
-        with col_sel3:
-            linea_over = st.number_input("Línea O/U", value=15.5, step=0.5, key="linea_t2")
-
-        df_jug_completo = df[df["Jugador"] == jugador_analisis].copy().sort_values("Fecha")
-        df_jug = df_jug_completo.tail(num_viz)
-
-        if not df_jug.empty:
-            info_jug = JUGADORES_DB.get(df_jug.iloc[0]["Equipo"], {}).get(jugador_analisis, {})
-            
-            col_info, col_stats = st.columns([1, 2])
-            
-            with col_info:
-                st.markdown(f"""
-                <div class="stat-card">
-                    <h2 style='margin:0; color:#00FFA3; text-align:center;'>{jugador_analisis}</h2>
-                    <hr style='border-color:#00D9FF; margin:10px 0;'>
-                    <p style='margin:5px 0; font-size:18px; color:#E0F4FF;'>📍 {info_jug.get('pos', 'N/A')}</p>
-                    <p style='margin:5px 0; font-size:18px; color:#E0F4FF;'>📏 {info_jug.get('alt', 0)} cm</p>
-                    <p style='margin:5px 0; font-size:18px; color:#E0F4FF;'>🏀 {df_jug.iloc[0]["Equipo"]}</p>
-                </div>""", unsafe_allow_html=True)
-                
-                consistencia, cv_val = calcular_indice_consistencia(df_jug[metrica_focus])
-                st.metric("Consistencia", consistencia, f"CV: {cv_val:.3f}")
-
-            with col_stats:
-                st.markdown(f"#### 📊 Promedios (Últimos {len(df_jug)} PJ)")
-                c_m = st.columns(5)
-                m_nombres = ["Puntos", "Rebotes", "Asistencias", "Minutos", "Eficiencia"]
-                m_iconos = ["🎯", "🏀", "🤝", "⏱️", "⚡"]
-                m_colores = ["#00D9FF", "#00FFA3", "#6B9EB0", "#FFD93D", "#9B59B6"]
-                
-                for col, m_n, icono, color in zip(c_m, m_nombres, m_iconos, m_colores):
-                    with col:
-                        val = df_jug[m_n].mean()
-                        st.markdown(f"""
-                        <div style='background:{color}20; padding:10px; border-radius:8px; text-align:center; border-left:4px solid {color};'>
-                            <p style='margin:0; font-size:18px;'>{icono}</p>
-                            <h3 style='margin:5px 0; color:{color}; font-size:18px;'>{val:.1f}</h3>
-                            <p style='margin:0; font-size:10px; color:#E0F4FF;'>{m_n}</p>
-                        </div>""", unsafe_allow_html=True)
-
-            st.divider()
-            st.markdown("#### 🤖 PREDICCIÓN IA")
-            
-            col_ml1, col_ml2 = st.columns(2)
-            
-            with col_ml1:
-                with st.spinner("Entrenando XGBoost..."):
-                    modelo, scaler, metricas = entrenar_modelo_v2(df, jugador_analisis, target_col=metrica_focus)
-                
-                if modelo is not None:
-                    st.success("✅ Modelo Optimizado")
-                    confianza = max(0.0, min(1.0, 1 - (metricas['mae']/df_jug[metrica_focus].mean())))
-                    st.progress(confianza, text=f"Confianza: {confianza*100:.1f}%")
-                    
-                    with st.expander("📊 Ver Importancia Features"):
-                        mostrar_importancia_features(metricas)
-                
-            with col_ml2:
-                if modelo is not None:
-                    es_loc_bool = st.session_state.get('localia', 'Local') == 'Local'
-                    d_descanso = df_jug_completo['Dias_Descanso'].iloc[-1] if not pd.isna(df_jug_completo['Dias_Descanso'].iloc[-1]) else 2
-                    pred_base, _ = predecir_proximo_partido_v2(modelo, scaler, df_jug_completo, target_col=metrica_focus, es_local=es_loc_bool, dias_descanso=d_descanso)
+        # 2. INFO DEL JUGADOR Y PROMEDIOS
+        col_info, col_stats = st.columns([1, 2])
         
-                # AJUSTE POR LESIONES Y CONTEXTO
+        with col_info:
+            st.markdown(f"""
+            <div class="stat-card">
+                <h2 style='margin:0; color:#00FFA3; text-align:center;'>{jugador_analisis}</h2>
+                <hr style='border-color:#00D9FF; margin:10px 0;'>
+                <p style='margin:5px 0; font-size:18px; color:#E0F4FF;'>📍 {info_jug.get('pos', 'N/A')}</p>
+                <p style='margin:5px 0; font-size:18px; color:#E0F4FF;'>📏 {info_jug.get('alt', 0)} cm</p>
+                <p style='margin:5px 0; font-size:18px; color:#E0F4FF;'>🏀 {df_jug.iloc[0]["Equipo"]}</p>
+            </div>""", unsafe_allow_html=True)
+            
+            consistencia, cv_val = calcular_indice_consistencia(df_jug[metrica_focus])
+            st.metric("Consistencia", consistencia, f"CV: {cv_val:.3f}")
+
+        with col_stats:
+            st.markdown(f"#### 📊 Promedios (Últimos {len(df_jug)} PJ)")
+            c_m = st.columns(5)
+            m_nombres = ["Puntos", "Rebotes", "Asistencias", "Minutos", "Eficiencia"]
+            m_iconos = ["🎯", "🏀", "🤝", "⏱️", "⚡"]
+            m_colores = ["#00D9FF", "#00FFA3", "#6B9EB0", "#FFD93D", "#9B59B6"]
+            
+            for col, m_n, icono, color in zip(c_m, m_nombres, m_iconos, m_colores):
+                with col:
+                    val = df_jug[m_n].mean()
+                    st.markdown(f"""
+                    <div style='background:{color}20; padding:10px; border-radius:8px; text-align:center; border-left:4px solid {color};'>
+                        <p style='margin:0; font-size:18px;'>{icono}</p>
+                        <h3 style='margin:5px 0; color:{color}; font-size:18px;'>{val:.1f}</h3>
+                        <p style='margin:0; font-size:10px; color:#E0F4FF;'>{m_n}</p>
+                    </div>""", unsafe_allow_html=True)
+
+        # 3. PREDICCIÓN IA
+        st.divider()
+        st.markdown("#### 🤖 PREDICCIÓN IA")
+        
+        col_ml1, col_ml2 = st.columns(2)
+        
+        with col_ml1:
+            with st.spinner("Entrenando XGBoost..."):
+                modelo, scaler, metricas = entrenar_modelo_v2(df, jugador_analisis, target_col=metrica_focus)
+            
+            if modelo is not None:
+                st.success("✅ Modelo Optimizado")
+                confianza = max(0.0, min(1.0, 1 - (metricas['mae']/df_jug[metrica_focus].mean())))
+                st.progress(confianza, text=f"Confianza: {confianza*100:.1f}%")
+                
+                with st.expander("📊 Ver Importancia Features"):
+                    mostrar_importancia_features(metricas)
+            
+        with col_ml2:
+            if modelo is not None:
+                es_loc_bool = st.session_state.get('localia', 'Local') == 'Local'
+                d_descanso = df_jug_completo['Dias_Descanso'].iloc[-1] if not pd.isna(df_jug_completo['Dias_Descanso'].iloc[-1]) else 2
+                
+                pred_base, _ = predecir_proximo_partido_v2(
+                    modelo, scaler, df_jug_completo, 
+                    target_col=metrica_focus, 
+                    es_local=es_loc_bool, 
+                    dias_descanso=d_descanso
+                )
+                
                 lesionados_equipo = st.session_state.get('lesionados_equipo', pd.DataFrame())
                 pred_ajustada, ajuste_info = ajustar_prediccion_por_contexto(
                     pred_base, 
@@ -1978,11 +2095,10 @@ if "df_equipo" in st.session_state:
                     lesionados_equipo, 
                     metrica_focus
                 )
-        
-                # Determinar si hubo ajuste significativo
+                
                 diferencia = abs(pred_ajustada - pred_base)
                 hay_ajuste = diferencia > 0.5
-        
+                
                 st.markdown(f"""
                 <div style='text-align:center; padding:20px; background:linear-gradient(135deg, #00D9FF, #00FFA3); border-radius:12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);'>
                       <p style='margin:0; font-size:14px; color:#05161A; font-weight:bold;'>PROYECCIÓN IA {'⚠️ AJUSTADA' if hay_ajuste else ''}</p>
@@ -1990,43 +2106,45 @@ if "df_equipo" in st.session_state:
                       <p style='margin:0; font-size:12px; color:#05161A;'>Línea: {linea_over}</p>
                       {f'<p style="margin:5px 0; font-size:11px; color:#05161A;">Base: {pred_base:.1f} → Ajuste: {pred_ajustada - pred_base:+.1f}</p>' if hay_ajuste else ''}
                 </div>""", unsafe_allow_html=True)
-        
-                # Mostrar explicación del ajuste
+                
                 if hay_ajuste and ajuste_info['ajustes_aplicados']:
-                     with st.expander("🔍 Ver Detalles del Ajuste"):
+                    with st.expander("🔍 Ver Detalles del Ajuste"):
                         for ajuste in ajuste_info['ajustes_aplicados']:
                             st.markdown(f"""
                             **Tipo:** {ajuste['tipo']}  
                             **Razón:** {ajuste['razon']}
                             """)
-                    
+                        
                             if 'jugadores_out' in ajuste:
                                 st.markdown(f"**Jugadores ausentes:** {', '.join(ajuste['jugadores_out'])}")
+            else:
+                st.warning("⚠️ No hay suficientes datos para entrenar el modelo (mínimo 5 partidos)")
 
+        # 4. ✅ GRÁFICA DE HISTORIAL (ESTO DEBE ESTAR AQUÍ)
+        st.divider()
+        st.markdown(f"#### 📈 Historial de {metrica_focus}")
+        st.plotly_chart(
+            crear_grafica_individual_mejorada(df_jug, metrica_focus, linea_over, jugador_analisis), 
+            use_container_width=True
+        )
 
-            st.divider()
-            st.markdown(f"#### 📈 Historial de {metrica_focus}")
-            st.plotly_chart(crear_grafica_individual_mejorada(df_jug, metrica_focus, linea_over, jugador_analisis), use_container_width=True)
-
-         # ANÁLISIS DE CONTEXTO DEL EQUIPO
-            st.divider()
-            st.markdown("#### 🏥 ANÁLISIS DE CONTEXTO DEL EQUIPO")
+        # 5. ✅ ANÁLISIS DE CONTEXTO (ESTO TAMBIÉN)
+        st.divider()
+        st.markdown("#### 🏥 ANÁLISIS DE CONTEXTO DEL EQUIPO")
+        
+        col_ctx1, col_ctx2 = st.columns(2)
+        
+        with col_ctx1:
+            equipo_jugador = df_jug.iloc[0]["Equipo"]
+            lesionados_equipo = st.session_state.get('lesionados_equipo', pd.DataFrame())
             
-            col_ctx1, col_ctx2 = st.columns(2)
-            
-            with col_ctx1:
-                # Mostrar impacto de lesiones
-                equipo_jugador = df_jug.iloc[0]["Equipo"]
-                lesionados_equipo = st.session_state.get('lesionados_equipo', pd.DataFrame())
-                
-                if not lesionados_equipo.empty:
-                    mostrar_analisis_lesiones(df, lesionados_equipo, equipo_jugador)
-                else:
-                    st.info("✅ No hay lesiones reportadas")
-            
-            with col_ctx2:
-                # Mostrar jugadores en recuperación
-                mostrar_regresos_lesion(df)
+            if not lesionados_equipo.empty:
+                mostrar_analisis_lesiones(df, lesionados_equipo, equipo_jugador)
+            else:
+                st.info("✅ No hay lesiones reportadas")
+        
+        with col_ctx2:
+            mostrar_regresos_lesion(df)
 
 
     with tab3:
