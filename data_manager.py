@@ -9,7 +9,7 @@ class DataManager:
     """Gestiona datos con lectura remota desde GitHub para Streamlit Cloud"""
     
     # CONFIGURACIÓN: Ajusta estas URLs con tu usuario de GitHub
-    USER = "rodolfocisco7"
+    USER = "rodolfocisco7-sketch"
     REPO = "hoops-analytics" # Confirma si este es el nombre de tu repo
     BASE_RAW_URL = f"https://raw.githubusercontent.com/{USER}/{REPO}/main/data"
     
