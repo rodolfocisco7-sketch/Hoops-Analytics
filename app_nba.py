@@ -49,6 +49,9 @@ def mostrar_interfaz_carga(nombre, equipo, pct, total, actual):
     restantes = total - actual
     st.markdown('<div class="jumping-logo">🏀</div>', unsafe_allow_html=True)
     st.markdown('<h1 class="brand-title">CANAL HOOPS ANALYTICS</h1>', unsafe_allow_html=True)
+    st.write("---")
+    st.warning("TEST DE SINCRONIZACIÓN V1") # Si esto NO aparece al subirlo, Streamlit está leyendo otro lado.
+    st.write("---")
     st.markdown('<p class="brand-subtitle">by Rodolfo Cisco</p>', unsafe_allow_html=True)
     st.markdown(f"""
         <div style="text-align:center; margin-bottom:15px;">
@@ -1261,7 +1264,7 @@ def obtener_jugadores_lesionados(team_name):
     return pd.DataFrame(lesionados)
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@st.cache_data(show_spinner=False, ttl=300)
 def scrapear_jugador(player_id, nombre_jugador, equipo_sel, cantidad=7):
     """Extrae estadísticas del jugador"""
     lista_stats = []
