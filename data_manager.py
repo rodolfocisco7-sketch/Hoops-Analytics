@@ -2,15 +2,15 @@ import pandas as pd
 import json
 from datetime import datetime, timedelta
 import os
-import requests # Necesario para leer la metadata desde la URL
+import requests 
 import time
 
 class DataManager:
     """Gestiona datos con lectura remota desde GitHub para Streamlit Cloud"""
     
-    # CONFIGURACIÓN: Ajusta estas URLs con tu usuario de GitHub
+    # CONFIGURACIÓN: Ajustada al nuevo repositorio
     USER = "rodolfocisco7-sketch"
-    REPO = "hoops-analytics" # Confirma si este es el nombre de tu repo
+    REPO = "Hoops-Analytics" 
     BASE_RAW_URL = f"https://raw.githubusercontent.com/{USER}/{REPO}/main/data"
     
     DATA_DIR = 'data'
@@ -23,23 +23,26 @@ class DataManager:
     
     def __init__(self):
         os.makedirs(self.DATA_DIR, exist_ok=True)
-        # Detectamos si estamos en Streamlit Cloud o local
-        self.is_cloud = os.getenv('STREAMLIT_SERVER_PORT') is not None
+        # DETECCIÓN MEJORADA: Si detecta el entorno de Streamlit Cloud, activa is_cloud
+        # Si esto falla en la web, cambiaremos False por True manualmente.
+        self.is_cloud = os.getenv('STREAMLIT_SERVER_PORT') is not None or os.path.exists('/home/appuser')
 
     def _get_url(self, filename):
-        """Genera URL Raw con bypass de caché"""
+        """Genera URL Raw con bypass de caché usando timestamp"""
         return f"{self.BASE_RAW_URL}/{filename}?v={int(time.time())}"
 
     def cargar_stats(self):
         """Lee de GitHub en la nube o local en PC"""
         try:
             if self.is_cloud:
+                # Intenta leer desde la URL de GitHub con bypass de caché
                 return pd.read_parquet(self._get_url('stats_latest.parquet'))
             
             if not os.path.exists(self.STATS_FILE):
                 return pd.DataFrame()
             return pd.read_parquet(self.STATS_FILE)
-        except Exception:
+        except Exception as e:
+            print(f"Error cargando stats: {e}")
             return pd.DataFrame()
 
     def cargar_lesionados(self):
@@ -51,7 +54,8 @@ class DataManager:
             if not os.path.exists(self.LESIONADOS_FILE):
                 return pd.DataFrame()
             return pd.read_parquet(self.LESIONADOS_FILE)
-        except Exception:
+        except Exception as e:
+            print(f"Error cargando lesionados: {e}")
             return pd.DataFrame()
 
     def cargar_metadata(self):
@@ -65,11 +69,12 @@ class DataManager:
                 return {}
             with open(self.METADATA_FILE, 'r') as f:
                 return json.load(f)
-        except Exception:
+        except Exception as e:
+            print(f"Error cargando metadata: {e}")
             return {}
 
-    # --- Los métodos de GUARDAR se quedan igual (solo los usa el scraper) ---
     def guardar_stats(self, df_nuevo):
+        """Método usado por el Scraper para guardar datos"""
         fecha_limite = datetime.now() - timedelta(days=self.DIAS_RETENER)
         df_filtrado = df_nuevo[df_nuevo['Fecha'] >= fecha_limite].copy()
         df_final = df_filtrado.sort_values('Fecha', ascending=False).groupby('Jugador').head(self.PARTIDOS_POR_JUGADOR).reset_index(drop=True)
@@ -77,10 +82,12 @@ class DataManager:
         return len(df_final)
 
     def guardar_lesionados(self, df_lesionados):
+        """Método usado por el Scraper para guardar lesionados"""
         if not df_lesionados.empty:
             df_lesionados.to_parquet(self.LESIONADOS_FILE, engine='pyarrow', compression='snappy', index=False)
 
     def actualizar_metadata(self, stats):
+        """Método usado por el Scraper para actualizar la fecha"""
         metadata = {
             'ultima_actualizacion': datetime.now().isoformat(),
             'total_jugadores': stats.get('total_jugadores', 0),
@@ -92,7 +99,6 @@ class DataManager:
         with open(self.METADATA_FILE, 'w') as f:
             json.dump(metadata, f, indent=2)
 
-    # --- Filtros (no cambian porque llaman a cargar_stats) ---
     def obtener_stats_equipo(self, equipo):
         df = self.cargar_stats()
         if df.empty: return pd.DataFrame()
@@ -104,5 +110,5 @@ class DataManager:
         return df[df['Equipo'] == equipo]
     
     def estadisticas_almacenamiento(self):
-        # Simplificado para evitar errores en nube
+        """Informa a la UI desde dónde se están leyendo los datos"""
         return {"modo": "Nube (GitHub Raw)" if self.is_cloud else "Local"}

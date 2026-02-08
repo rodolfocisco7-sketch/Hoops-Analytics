@@ -129,7 +129,6 @@ JUGADORES_DB = {
     "Onyeka Okonwu":            {"id": 1092036, "pos": "C", "alt": 203},
     "Nickeil Alexander-Walker": {"id": 988994, "pos": "SG", "alt": 196},
     "CJ McCollum":              {"id": 817253, "pos": "SG", "alt": 191},
-    "Vit Krejci":               {"id": 1092950, "pos": "F", "alt": 203},
     "Corey Kispert":            {"id": 1134115, "pos": "F", "alt": 198},
     "Mouhamed Gueye":           {"id": 1181310, "pos": "F", "alt": 208},
     "Christian Koloko":         {"id": 1181314, "pos": "C", "alt": 216},
@@ -607,6 +606,7 @@ JUGADORES_DB = {
   "Rayan Rupert":        {"id": 1412271, "pos": "SF", "alt": 198},
   "Javonte Cook":        {"id": 1510810, "pos": "SF", "alt": 191},
   "Yang Hansen":         {"id": 1503509, "pos": "C",  "alt": 218},
+  "Vit Krejci":          {"id": 1092950, "pos": "F", "alt": 203},
 },
 
 "Sacramento Kings": {
