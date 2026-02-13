@@ -1,84 +1,70 @@
-# .github/workflows/scraper.yml
 name: NBA Data Scraper
 
 on:
   schedule:
-    # Corre 3 veces al día (UTC - ajusta según tu zona)
-    # 11:00 UTC = 6:00 AM Panamá (UTC-5)
-    - cron: '0 11 * * *'  
-    # 19:00 UTC = 2:00 PM Panamá
-    - cron: '0 19 * * *'  
-    # 03:00 UTC = 10:00 PM Panamá (día anterior)
-    - cron: '0 3 * * *'   
-  
-  workflow_dispatch:  # Permite ejecución manual desde GitHub
+    - cron: '0 11 * * *'   # 6:00 AM Panamá
+    - cron: '0 19 * * *'   # 2:00 PM Panamá
+    - cron: '0 3 * * *'    # 10:00 PM Panamá
+  workflow_dispatch:
+
+# 🟢 SOLUCIÓN 1: Damos permiso explícito para escribir en el repo
+permissions:
+  contents: write
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 90  # Timeout de 90 minutos para scraping largo
+    timeout-minutes: 90
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-    
+        # 🟢 SOLUCIÓN 2: Aseguramos que bajamos la rama 'main', no un commit suelto
+        ref: main 
+
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-    
+
     - name: Install dependencies
       run: |
         pip install --upgrade pip
         pip install -r requirements.txt
-    
+
     - name: Run scraper
       run: |
         python scraper_automatico.py
-      continue-on-error: false  # Cambiado a false para detectar errores
-    
-    - name: Commit and push if changed
+      continue-on-error: false
+
+    - name: Commit and Push
       run: |
-        # Configurar Git
+        # Configurar identidad
         git config --global user.name 'GitHub Actions Bot'
         git config --global user.email 'actions@github.com'
-        
-        # Agregar archivos modificados
+
+        # 🟢 SOLUCIÓN 3: Sincronizamos ANTES de añadir nada para evitar conflictos
+        # Esto descarga lo último de GitHub y lo fusiona suavemente
+        git pull origin main --no-rebase || echo "Nada que pullear o conflicto menor"
+
+        # Añadimos los cambios generados por el scraper
         git add data/
-        
-        # Verificar si hay cambios
-        if [ -n "$(git status --porcelain data/)" ]; then
-          echo "✅ Cambios detectados en /data/"
-          git status --short data/
-          
-          # Commit con timestamp
+
+        # Verificamos si hay algo real que subir
+        if git diff --staged --quiet; then
+          echo "ℹ️ No hay cambios en la data. Terminando."
+        else
+          echo "✅ Cambios detectados. Creando commit..."
           git commit -m "🤖 Auto-update NBA data - $(date -u +'%Y-%m-%d %H:%M UTC')"
           
-          # Push con retry (por si hay conflictos)
-          for i in {1..3}; do
-            if git push origin main; then
-              echo "✅ Push exitoso"
-              break
-            else
-              echo "⚠️ Push falló, reintentando en 5s..."
-              sleep 5
-              git pull --rebase origin main
-            fi
-          done
-        else
-          echo "ℹ️ No hay cambios en /data/"
+          # Push directo. Si falla aquí, queremos ver el error real, no ocultarlo en un loop.
+          git push origin main
         fi
-    
-    - name: Verificar resultado
+
+    - name: Verificar estado final
       if: always()
       run: |
-        echo "📊 Estado final del repositorio:"
-        git status
-        echo ""
-        echo "📁 Archivos en /data/:"
+        echo "📊 Último estado:"
         ls -lh data/
-        echo ""
-        echo "📅 Contenido de metadata.json:"
-        cat data/metadata.json
