@@ -19,14 +19,15 @@ logging.basicConfig(
 
 # Importar funciones del app.py
 try:
-    from app_nba import (
-        scrapear_jugador, 
-        obtener_jugadores_lesionados, 
-        JUGADORES_DB,
-        TEAM_IDS
-    )
-except ImportError:
-    logging.error("No se pudo importar desde app.py")
+    # Las constantes las traes del nuevo archivo que creaste
+    from config_nba import JUGADORES_DB, TEAM_IDS
+    
+    # La lógica de scraping (las funciones) muévelas a un archivo 
+    # llamado logic_nba.py (o donde las hayas puesto)
+    from logic_nba import scrapear_jugador, obtener_jugadores_lesionados
+    
+except ImportError as e:
+    logging.error(f"Error de importación: {e}")
     sys.exit(1)
 
 class ScraperOptimizado:
