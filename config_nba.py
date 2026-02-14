@@ -1,3 +1,5 @@
+
+
 TEAM_IDS = {
     # Conferencia Oeste
     "Dallas Mavericks": 3411,
@@ -628,3 +630,17 @@ JUGADORES_DB = {
 
 },
 }
+
+if __name__ == "__main__":
+    print(f"✅ Equipos configurados: {len(TEAM_IDS)}")
+    print(f"✅ Equipos con jugadores: {len(JUGADORES_DB)}")
+    
+    total_jugadores = sum(len(jugadores) for jugadores in JUGADORES_DB.values())
+    print(f"✅ Total de jugadores: {total_jugadores}")
+    
+    # Verificar que todos los equipos tienen jugadores
+    equipos_sin_jugadores = [eq for eq, jugs in JUGADORES_DB.items() if len(jugs) == 0]
+    if equipos_sin_jugadores:
+        print(f"⚠️ Equipos SIN jugadores configurados:")
+        for eq in equipos_sin_jugadores:
+            print(f"   - {eq}")
