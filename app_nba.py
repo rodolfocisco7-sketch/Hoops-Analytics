@@ -1021,7 +1021,7 @@ def mostrar_importancia_features(metricas_modelo):
 # SIDEBAR
 # ============================================================================
 import socket
-socket.setdefaulttimeout(5
+socket.setdefaulttimeout(5)
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def obtener_datos_partido_cached(nombre_equipo):
