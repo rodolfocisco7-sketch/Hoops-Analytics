@@ -1081,15 +1081,19 @@ with st.sidebar:
 
     st.divider()
 
-    # ── Próximo partido — CACHEADO, no bloquea ────────────────────────────
+# ── Próximo partido — CACHEADO, no bloquea ────────────────────────────
     st.markdown("### 🆚 PRÓXIMO PARTIDO")
     
+    contexto = {"hay_juego": False, "rival": None, "localia": None, "fecha": None}
     try:
-     with st.spinner("Buscando partido..."):
-        contexto = obtener_datos_partido_cached(equipo_sel)
+        with st.spinner("Buscando partido..."):
+            contexto = obtener_datos_partido_cached(equipo_sel)
     except Exception as e:
-     contexto = {"hay_juego": False, "_error": str(e)}
-    st.caption(f"⚠️ {e}")
+        st.caption(f"⚠️ API error: {type(e).__name__}")
+
+    # Mostrar error de API si lo hay (para debug)
+    if contexto and contexto.get("_error"):
+        st.caption(f"⚠️ NBA API: {contexto['_error']}")
 
     # Mostrar error de API si lo hay (para debug)
     if contexto and contexto.get("_error"):
