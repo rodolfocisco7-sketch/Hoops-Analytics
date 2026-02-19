@@ -1020,6 +1020,8 @@ def mostrar_importancia_features(metricas_modelo):
 # ============================================================================
 # SIDEBAR
 # ============================================================================
+import socket
+socket.setdefaulttimeout(5
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def obtener_datos_partido_cached(nombre_equipo):
@@ -1082,8 +1084,12 @@ with st.sidebar:
     # ── Próximo partido — CACHEADO, no bloquea ────────────────────────────
     st.markdown("### 🆚 PRÓXIMO PARTIDO")
     
+   try:
     with st.spinner("Buscando partido..."):
         contexto = obtener_datos_partido_cached(equipo_sel)
+except Exception as e:
+    contexto = {"hay_juego": False, "_error": str(e)}
+    st.caption(f"⚠️ {e}")
 
     # Mostrar error de API si lo hay (para debug)
     if contexto and contexto.get("_error"):
