@@ -1021,66 +1021,75 @@ def mostrar_importancia_features(metricas_modelo):
 # SIDEBAR
 # ============================================================================
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def obtener_datos_partido_cached(nombre_equipo):
+    """Versión cacheada — evita bloquear el sidebar en cada rerun"""
+    try:
+        return obtener_datos_partido(nombre_equipo)
+    except Exception as e:
+        return {"hay_juego": False, "rival": None, "localia": None, "fecha": None, "_error": str(e)}
+
+
 with st.sidebar:
     st.markdown("### 🏀 CONTROL PANEL")
     
-    # Metadata
-    metadata = dm.cargar_metadata()
-    if metadata:
-        ultima = metadata.get('ultima_actualizacion', '')
-        if ultima:
-            try:
+    # ── Metadata (con try/except visible) ────────────────────────────────
+    try:
+        metadata = dm.cargar_metadata()
+        if metadata:
+            ultima = metadata.get('ultima_actualizacion', '')
+            if ultima:
                 dt = datetime.fromisoformat(ultima)
                 hace_horas = (datetime.now() - dt).total_seconds() / 3600
-                
-                if hace_horas < 2:
-                    color_estado = "success"
-                    icono_estado = "✅"
-                elif hace_horas < 6:
-                    color_estado = "info"
-                    icono_estado = "ℹ️"
-                else:
-                    color_estado = "warning"
-                    icono_estado = "⏰"
-                
+                color_estado = "success" if hace_horas < 2 else "info" if hace_horas < 6 else "warning"
+                icono_estado = "✅" if hace_horas < 2 else "ℹ️" if hace_horas < 6 else "⏰"
                 st.markdown(f"""
                 <div class="alert-{color_estado}">
                     {icono_estado} <b>Última actualización:</b><br>
                     <small>{dt.strftime('%d/%m %H:%M')} (hace {hace_horas:.1f}h)</small>
                 </div>
                 """, unsafe_allow_html=True)
-            except:
-                pass
-    
+    except Exception as e:
+        st.caption(f"⚠️ Metadata: {e}")  # muestra el error sin bloquear
+
+    # ── Selector de equipo ────────────────────────────────────────────────
     equipo_sel = st.selectbox(
         "Selecciona Equipo",
         sorted(list(JUGADORES_DB.keys())),
         key="equipo_sidebar"
     )
-    
+
     st.divider()
+
+    # ── Lesionados (con try/except visible) ───────────────────────────────
     st.markdown("### 🏥 ESTADO DEL EQUIPO")
-    
-    # Lesionados desde BD
-    lesionados_df = dm.obtener_lesionados_equipo(equipo_sel)
-    
-    if not lesionados_df.empty:
-        st.warning(f"⚠️ {len(lesionados_df)} no disponible(s)")
-        with st.expander("Ver detalles"):
-            for _, row in lesionados_df.iterrows():
-                st.markdown(f"🏥 **{row['Jugador']}** - {row.get('Razon', 'N/A')}")
-    else:
-        st.success("✅ Equipo completo")
-        
-    st.session_state.lesionados_equipo = lesionados_df
-    
+    try:
+        lesionados_df = dm.obtener_lesionados_equipo(equipo_sel)
+        if not lesionados_df.empty:
+            st.warning(f"⚠️ {len(lesionados_df)} no disponible(s)")
+            with st.expander("Ver detalles"):
+                for _, row in lesionados_df.iterrows():
+                    st.markdown(f"🏥 **{row['Jugador']}** - {row.get('Razon', 'N/A')}")
+        else:
+            st.success("✅ Equipo completo")
+        st.session_state.lesionados_equipo = lesionados_df
+    except Exception as e:
+        st.caption(f"⚠️ Error lesionados: {e}")
+        st.session_state.lesionados_equipo = pd.DataFrame()
+
     st.divider()
+
+    # ── Próximo partido — CACHEADO, no bloquea ────────────────────────────
     st.markdown("### 🆚 PRÓXIMO PARTIDO")
     
-    # ✅ OBTENER CONTEXTO DE PRÓXIMO JUEGO
-    contexto = obtener_datos_partido(equipo_sel)
-    
-    if contexto and contexto["hay_juego"] and contexto["rival"]:
+    with st.spinner("Buscando partido..."):
+        contexto = obtener_datos_partido_cached(equipo_sel)
+
+    # Mostrar error de API si lo hay (para debug)
+    if contexto and contexto.get("_error"):
+        st.caption(f"⚠️ NBA API: {contexto['_error']}")
+
+    if contexto and contexto.get("hay_juego") and contexto.get("rival"):
         st.markdown(f"""
         <div class="alert-info">
             <h4 style='margin:0 0 10px 0; color:#00D9FF;'>🏟️ Próximo Juego</h4>
@@ -1089,11 +1098,10 @@ with st.sidebar:
             <p style='margin:0; color:#00FFA3;'>📅 {contexto.get('fecha', 'Próximamente')}</p>
         </div>
         """, unsafe_allow_html=True)
-        
+
         st.session_state.rival_nombre = contexto['rival']
         st.session_state.localia = contexto['localia']
-        
-        # ✅ CHECKBOX PARA CARGAR RIVAL
+
         if st.checkbox("📊 Comparar con rival", key="cargar_rival"):
             st.session_state.incluir_rival = True
         else:
@@ -1102,19 +1110,30 @@ with st.sidebar:
         st.warning("📅 Sin partidos próximos")
         st.session_state.rival_nombre = None
         st.session_state.incluir_rival = False
-    
+
     st.divider()
+
+    # ── Controles ─────────────────────────────────────────────────────────
     st.markdown("#### 📊 Partidos a Analizar")
     num_partidos_visualizar = st.slider("Visualizar últimos", min_value=3, max_value=10, value=7)
     st.session_state.num_partidos_viz = num_partidos_visualizar
-    
+
     st.divider()
+
+    # ── BOTÓN — ahora siempre llega aquí ─────────────────────────────────
     btn_cargar = st.button("🚀 CARGAR DATOS", use_container_width=True, type="primary")
-    
-    # Debug info (opcional)
+
+    # ── Debug (opcional) ──────────────────────────────────────────────────
     if st.checkbox("📊 Ver Info de Datos", key="debug_storage"):
-        storage = dm.estadisticas_almacenamiento()
-        st.json(storage)
+        try:
+            storage = dm.estadisticas_almacenamiento()
+            st.json(storage)
+        except Exception as e:
+            st.caption(f"Error: {e}")
+    
+    # ── Debug contexto partido (quitar cuando todo funcione) ──────────────
+    if st.checkbox("🔍 Debug partido", key="debug_partido"):
+        st.json(contexto)
 
 # ============================================================================
 # LÓGICA DE CARGA 
