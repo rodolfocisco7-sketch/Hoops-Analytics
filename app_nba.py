@@ -1084,11 +1084,11 @@ with st.sidebar:
     # ── Próximo partido — CACHEADO, no bloquea ────────────────────────────
     st.markdown("### 🆚 PRÓXIMO PARTIDO")
     
-   try:
-    with st.spinner("Buscando partido..."):
+    try:
+     with st.spinner("Buscando partido..."):
         contexto = obtener_datos_partido_cached(equipo_sel)
-except Exception as e:
-    contexto = {"hay_juego": False, "_error": str(e)}
+    except Exception as e:
+     contexto = {"hay_juego": False, "_error": str(e)}
     st.caption(f"⚠️ {e}")
 
     # Mostrar error de API si lo hay (para debug)
