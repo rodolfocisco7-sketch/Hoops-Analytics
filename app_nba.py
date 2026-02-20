@@ -1576,7 +1576,7 @@ if "df_equipo" in st.session_state:
 
             if rival_nombre:
                 st.info(f"💡 Marca '📊 Comparar con rival' en el sidebar y recarga para ver **{rival_nombre}** aquí")
-                
+
     # streamlit run app_nba.py
     # .\Hoops_Analytics\Scripts\Activate.ps1
 
