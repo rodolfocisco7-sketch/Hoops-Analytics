@@ -12,8 +12,7 @@ from data_manager import DataManager
 from nba_api.stats.static import teams
 from nba_api.stats.endpoints import scoreboardv2
 
-# ✅ IMPORTAR desde logic_nba (NO duplicar aquí)
-from logic_nba import scrapear_jugador, obtener_jugadores_lesionados
+from logic_nba import scrapear_jugador, obtener_jugadores_lesionados, obtener_proximo_partido
 from config_nba import JUGADORES_DB, TEAM_IDS
 
 from sklearn.ensemble import RandomForestRegressor
@@ -1025,11 +1024,17 @@ socket.setdefaulttimeout(5)
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def obtener_datos_partido_cached(nombre_equipo):
-    """Versión cacheada — evita bloquear el sidebar en cada rerun"""
+    """
+    Obtiene próximo partido via SofaScore (confiable en Streamlit Cloud).
+    Cache de 30 min — no bloquea el sidebar en cada rerun.
+    """
     try:
-        return obtener_datos_partido(nombre_equipo)
+        return obtener_proximo_partido(nombre_equipo)
     except Exception as e:
-        return {"hay_juego": False, "rival": None, "localia": None, "fecha": None, "_error": str(e)}
+        return {
+            "hay_juego": False, "rival": None, "rival_display": None,
+            "localia": None, "fecha": None, "_error": str(e)
+        }
 
 
 with st.sidebar:
@@ -1081,47 +1086,42 @@ with st.sidebar:
 
     st.divider()
 
-# ── Próximo partido — CACHEADO, no bloquea ────────────────────────────
     st.markdown("### 🆚 PRÓXIMO PARTIDO")
-    
+
     contexto = {"hay_juego": False, "rival": None, "localia": None, "fecha": None}
     try:
         with st.spinner("Buscando partido..."):
             contexto = obtener_datos_partido_cached(equipo_sel)
     except Exception as e:
-        st.caption(f"⚠️ API error: {type(e).__name__}")
+        st.caption(f"⚠️ Error: {type(e).__name__}")
 
-    # Mostrar error de API si lo hay (para debug)
-    if contexto and contexto.get("_error"):
-        st.caption(f"⚠️ NBA API: {contexto['_error']}")
+    if contexto.get("_error"):
+        st.caption(f"⚠️ {contexto['_error'][:60]}")
 
-    # Mostrar error de API si lo hay (para debug)
-    if contexto and contexto.get("_error"):
-        st.caption(f"⚠️ NBA API: {contexto['_error']}")
-
-    if contexto and contexto.get("hay_juego") and contexto.get("rival"):
-        st.markdown(f"""
+    if contexto.get("hay_juego") and contexto.get("rival"):
+        nombre_mostrar = contexto.get('rival_display', contexto['rival'])
+        st.markdown(f'''
         <div class="alert-info">
             <h4 style='margin:0 0 10px 0; color:#00D9FF;'>🏟️ Próximo Juego</h4>
-            <p style='font-size:16px; margin:5px 0; color:#E0F4FF;'><b>{contexto['rival']}</b></p>
-            <p style='margin:5px 0; color:#E0F4FF;'>📍 {contexto['localia']}</p>
-            <p style='margin:0; color:#00FFA3;'>📅 {contexto.get('fecha', 'Próximamente')}</p>
+            <p style='font-size:16px; margin:5px 0; color:#E0F4FF;'><b>{nombre_mostrar}</b></p>
+            <p style='margin:5px 0; color:#E0F4FF;'>📍 {contexto["localia"]}</p>
+            <p style='margin:0; color:#00FFA3;'>📅 {contexto.get("fecha", "Próximamente")}</p>
         </div>
-        """, unsafe_allow_html=True)
+        ''', unsafe_allow_html=True)
 
-        st.session_state.rival_nombre = contexto['rival']
+        st.session_state.rival_nombre = contexto['rival']          # nombre en JUGADORES_DB
+        st.session_state.rival_display = nombre_mostrar
         st.session_state.localia = contexto['localia']
+        st.session_state.event_id = contexto.get('event_id')
 
         if st.checkbox("📊 Comparar con rival", key="cargar_rival"):
             st.session_state.incluir_rival = True
         else:
             st.session_state.incluir_rival = False
     else:
-        st.warning("📅 Sin partidos próximos")
+        st.warning("📅 Sin partidos próximos detectados")
         st.session_state.rival_nombre = None
         st.session_state.incluir_rival = False
-
-    st.divider()
 
     # ── Controles ─────────────────────────────────────────────────────────
     st.markdown("#### 📊 Partidos a Analizar")
@@ -1417,7 +1417,65 @@ if "df_equipo" in st.session_state:
                 use_container_width=True
             )
 
+            # 4.5 ANÁLISIS DEFENSIVO DEL RIVAL
+            rival_nombre = st.session_state.get('rival_nombre')
+            if rival_nombre and rival_nombre in df['Equipo'].unique():
+                st.divider()
+                st.markdown("#### 🆚 ANÁLISIS DEL RIVAL")
+
+                from logic_nba import calcular_stats_defensivas_rival
+
+                stats_rival = calcular_stats_defensivas_rival(df, rival_nombre, metrica_focus)
+
+                if stats_rival['disponible']:
+                    col_r1, col_r2, col_r3 = st.columns(3)
+
+                    with col_r1:
+                        st.markdown(f'''
+                        <div class="stat-card">
+                            <p style="color:#B8D4E0; font-size:12px; margin:0;">PRODUCCIÓN TOTAL RIVAL</p>
+                            <h2 style="color:#FF6B6B; margin:5px 0;">{stats_rival["produccion_total_rival"]}</h2>
+                            <p style="color:#E0F4FF; font-size:12px;">{metrica_focus} combinados</p>
+                        </div>
+                        ''', unsafe_allow_html=True)
+
+                    with col_r2:
+                        st.markdown(f'''
+                        <div class="stat-card">
+                            <p style="color:#B8D4E0; font-size:12px; margin:0;">PROMEDIO POR JUGADOR</p>
+                            <h2 style="color:#FFD93D; margin:5px 0;">{stats_rival["promedio_por_jugador"]}</h2>
+                            <p style="color:#E0F4FF; font-size:12px;">Jugadores con datos: {stats_rival["total_jugadores_data"]}</p>
+                        </div>
+                        ''', unsafe_allow_html=True)
+
+                    with col_r3:
+                        st.markdown(f'''
+                        <div class="stat-card">
+                            <p style="color:#B8D4E0; font-size:12px; margin:0;">NIVEL RIVAL</p>
+                            <h2 style="color:#00FFA3; margin:5px 0; font-size:20px;">{stats_rival["nivel_rival"]}</h2>
+                            <p style="color:#E0F4FF; font-size:12px;">Pace ~{stats_rival["pace_semanal"]} partidos/semana</p>
+                        </div>
+                        ''', unsafe_allow_html=True)
+
+                    # Top jugadores del rival
+                    if stats_rival['top_jugadores']:
+                        st.markdown(f"**Top amenazas del rival en {metrica_focus}:**")
+                        tops = stats_rival['top_jugadores']
+                        cols_top = st.columns(len(tops))
+                        medallas = ["🥇", "🥈", "🥉"]
+                        for idx, (jug, val) in enumerate(tops.items()):
+                            with cols_top[idx]:
+                                st.markdown(f'''
+                                <div style="background:rgba(255,107,107,0.1); padding:10px; border-radius:8px;
+                                            border-left:3px solid #FF6B6B; text-align:center;">
+                                    <p style="margin:0; font-size:11px; color:#B8D4E0;">{medallas[idx]} {jug}</p>
+                                    <h3 style="margin:5px 0; color:#FF6B6B;">{val}</h3>
+                                </div>
+                                ''', unsafe_allow_html=True)
+                else:
+                    st.info(f"💡 {stats_rival['mensaje']} — Carga el rival con '📊 Comparar con rival' en el sidebar")
             # 5. ANÁLISIS DE CONTEXTO
+        
             st.divider()
             st.markdown("#### 🏥 ANÁLISIS DE CONTEXTO DEL EQUIPO")
             
@@ -1438,7 +1496,7 @@ if "df_equipo" in st.session_state:
 
     with tab3:
         st.markdown("### 🏆 Top 3 Comparativas")
-        
+
         df_top = df.groupby('Jugador').head(num_viz)
         promedios = df_top.groupby('Jugador').agg({
             'Puntos': 'mean',
@@ -1446,32 +1504,79 @@ if "df_equipo" in st.session_state:
             'Asistencias': 'mean',
             'Equipo': 'first'
         }).reset_index()
-        
-        categorias = [
-            {"t": "🎯 ANOTADORES", "m": "Puntos", "c": "#00D9FF"},
-            {"t": "🏀 REBOTEADORES", "m": "Rebotes", "c": "#00FFA3"},
-            {"t": "🤝 ASISTIDORES", "m": "Asistencias", "c": "#9B59B6"}
-        ]
-        
-        cols = st.columns(3)
-        
-        for i, cat in enumerate(categorias):
-            with cols[i]:
-                st.markdown(f"#### {cat['t']}")
-                top3 = promedios.nlargest(3, cat['m'])
+
+        # ── Si hay rival cargado, mostrar comparativa entre equipos
+        rival_nombre = st.session_state.get('rival_nombre')
+        hay_rival_en_datos = rival_nombre and rival_nombre in df['Equipo'].unique()
+
+        if hay_rival_en_datos:
+            st.markdown(f"#### ⚔️ {equipo_sel} vs {rival_nombre}")
+
+            for metrica_tab3 in ['Puntos', 'Rebotes', 'Asistencias']:
+                col_eq, col_vs, col_riv = st.columns([5, 1, 5])
+
+                top_eq = promedios[promedios['Equipo'] == equipo_sel].nlargest(3, metrica_tab3)
+                top_riv = promedios[promedios['Equipo'] == rival_nombre].nlargest(3, metrica_tab3)
+
+                iconos = {'Puntos': '🎯', 'Rebotes': '🏀', 'Asistencias': '🤝'}
                 medallas = ["🥇", "🥈", "🥉"]
-                
-                for j, (_, row) in enumerate(top3.iterrows()):
-                    st.markdown(f"""
-                    <div style='background: linear-gradient(135deg, {cat['c']}25, {cat['c']}05); 
-                                padding:15px; border-radius:12px; margin-bottom:12px; border-left:5px solid {cat['c']};'>
-                        <div style='display:flex; justify-content:space-between;'>
-                            <span style='font-size:16px; font-weight:bold; color:#E0F4FF;'>{row['Jugador']}</span>
-                            <span style='font-size:20px;'>{medallas[j]}</span>
+
+                with col_eq:
+                    st.markdown(f"**{iconos[metrica_tab3]} {equipo_sel}**")
+                    for j, (_, row) in enumerate(top_eq.iterrows()):
+                        st.markdown(f'''
+                        <div style="background:rgba(0,217,255,0.1); padding:10px; border-radius:8px;
+                                    margin-bottom:8px; border-left:4px solid #00D9FF;">
+                            <span style="color:#E0F4FF;">{medallas[j]} {row["Jugador"]}</span>
+                            <span style="float:right; color:#00D9FF; font-weight:bold;">{row[metrica_tab3]:.1f}</span>
                         </div>
-                        <span style='color:{cat['c']}; font-size:24px; font-weight:bold;'>{row[cat['m']]:.1f}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        ''', unsafe_allow_html=True)
+
+                with col_vs:
+                    st.markdown("<div style='text-align:center; padding-top:30px; color:#FFD93D; font-weight:bold; font-size:20px;'>VS</div>", unsafe_allow_html=True)
+
+                with col_riv:
+                    st.markdown(f"**{iconos[metrica_tab3]} {rival_nombre}**")
+                    for j, (_, row) in enumerate(top_riv.iterrows()):
+                        st.markdown(f'''
+                        <div style="background:rgba(255,107,107,0.1); padding:10px; border-radius:8px;
+                                    margin-bottom:8px; border-left:4px solid #FF6B6B;">
+                            <span style="color:#E0F4FF;">{medallas[j]} {row["Jugador"]}</span>
+                            <span style="float:right; color:#FF6B6B; font-weight:bold;">{row[metrica_tab3]:.1f}</span>
+                        </div>
+                        ''', unsafe_allow_html=True)
+
+                st.divider()
+
+        else:
+            # Vista original sin rival
+            categorias = [
+                {"t": "🎯 ANOTADORES", "m": "Puntos", "c": "#00D9FF"},
+                {"t": "🏀 REBOTEADORES", "m": "Rebotes", "c": "#00FFA3"},
+                {"t": "🤝 ASISTIDORES", "m": "Asistencias", "c": "#9B59B6"}
+            ]
+
+            cols = st.columns(3)
+            for i, cat in enumerate(categorias):
+                with cols[i]:
+                    st.markdown(f"#### {cat['t']}")
+                    top3 = promedios.nlargest(3, cat['m'])
+                    medallas = ["🥇", "🥈", "🥉"]
+                    for j, (_, row) in enumerate(top3.iterrows()):
+                        st.markdown(f'''
+                        <div style="background: linear-gradient(135deg, {cat["c"]}25, {cat["c"]}05);
+                                    padding:15px; border-radius:12px; margin-bottom:12px; border-left:5px solid {cat["c"]};">
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="font-size:16px; font-weight:bold; color:#E0F4FF;">{row["Jugador"]}</span>
+                                <span style="font-size:20px;">{medallas[j]}</span>
+                            </div>
+                            <span style="color:{cat["c"]}; font-size:24px; font-weight:bold;">{row[cat["m"]]:.1f}</span>
+                        </div>
+                        ''', unsafe_allow_html=True)
+
+            if rival_nombre:
+                st.info(f"💡 Marca '📊 Comparar con rival' en el sidebar y recarga para ver **{rival_nombre}** aquí")
+                
     # streamlit run app_nba.py
     # .\Hoops_Analytics\Scripts\Activate.ps1
 
