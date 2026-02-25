@@ -115,14 +115,12 @@ JUGADORES_DB = {
 
 "Chicago Bulls": {
   
-  "Nikola Vucevic":    {"id": 817423,  "pos": "C",     "alt": 208},
   "Matas Buzelis":     {"id": 1629476, "pos": "SF",    "alt": 208},
   "Josh Giddey":       {"id": 1133812, "pos": "PG",    "alt": 203},
   "Tre Jones":         {"id": 1092947, "pos": "PG",    "alt": 185},
   "Isaac Okoro":       {"id": 1092915, "pos": "SF",    "alt": 196},
   "Jalen Smith":       {"id": 1092897,    "pos": "PF/C",  "alt": 206},
   "Patrick Williams":  {"id": 1092881,    "pos": "PF",    "alt": 201},
-  
   "Dalen Terry":       {"id": 1181319,    "pos": "SG",    "alt": 201},
   "Zach Collins":      {"id": 885242,    "pos": "PF/C",  "alt": 211},
   "Anfernee Simons":   {"id": 940767, "pos": "SG", "alt": 191},
@@ -142,8 +140,6 @@ JUGADORES_DB = {
   "Jarrett Allen":      {"id": 885222,    "pos": "C",     "alt": 206},
   "Jaylon Tyson":       {"id": 1381333,   "pos": "SF",    "alt": 201},
   "Ty Jerome":          {"id": 988301,    "pos": "PG",    "alt": 196},
-  
-
   "Sam Merrill":        {"id": 1396473,   "pos": "SG",    "alt": 193},
   "Dean Wade":          {"id": 987560,    "pos": "PF/C",  "alt": 206},
   "Tyrese Proctor":     {"id": 1430914,   "pos": "PG",    "alt": 196},
