@@ -1,4 +1,5 @@
 
+# --- BASE DE DATOS DE EQUIPOS ---
 
 TEAM_IDS = {
     # Conferencia Oeste
@@ -36,7 +37,7 @@ TEAM_IDS = {
     "Washington Wizards": 3431
 }
 
-# --- BASE DE DATOS DE JUGADORES (Completa) ---
+# --- BASE DE DATOS DE JUGADORES ---
 JUGADORES_DB = {
 "Atlanta Hawks": {
     "Jalen Johnson":            {"id": 1133787, "pos": "PF", "alt": 206},

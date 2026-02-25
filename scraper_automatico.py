@@ -1,4 +1,4 @@
-# scraper_automatico.py - VERSIÓN OPTIMIZADA
+# scraper_automatico.py 
 import pandas as pd
 import time
 import logging

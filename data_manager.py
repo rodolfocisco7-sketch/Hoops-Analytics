@@ -5,8 +5,7 @@ import os
 import time
 
 # ============================================================================
-# CACHE A NIVEL DE MÓDULO — Esto SÍ funciona en Streamlit Cloud
-# (el patrón @st.cache_data dentro de métodos de instancia NO cachea)
+# CACHE A NIVEL DE MÓDULO
 # ============================================================================
 try:
     import streamlit as st
@@ -82,7 +81,7 @@ class DataManager:
         self.is_cloud = self.is_streamlit
 
     # ============================================================================
-    # MÉTODOS DE CARGA (usados por la app)
+    # MÉTODOS DE CARGA
     # ============================================================================
 
     def cargar_stats(self) -> pd.DataFrame:
@@ -164,7 +163,7 @@ class DataManager:
         return stats
 
     # ============================================================================
-    # MÉTODOS DE GUARDADO (usados por el scraper — corre LOCAL, no en Cloud)
+    # MÉTODOS DE GUARDADO
     # ============================================================================
 
     def guardar_stats(self, df_nuevo: pd.DataFrame) -> int:

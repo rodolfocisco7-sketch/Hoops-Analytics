@@ -19,7 +19,7 @@ def obtener_fecha_panama():
 
 
 # ============================================================================
-# PRÓXIMO PARTIDO — SofaScore (reemplaza nba_api que falla en Streamlit Cloud)
+# PRÓXIMO PARTIDO 
 # ============================================================================
 
 def obtener_proximo_partido(team_name: str) -> dict:
@@ -81,7 +81,7 @@ def obtener_proximo_partido(team_name: str) -> dict:
         # Mapear nombre SofaScore → nombre en JUGADORES_DB
         rival_nombre_db = _mapear_nombre_equipo(rival_nombre)
 
-        # Fecha en hora Panamá
+        # Fecha en hora
         ts = ev.get('startTimestamp', 0)
         fecha_utc = datetime.utcfromtimestamp(ts)
         fecha_panama = fecha_utc - timedelta(hours=CONFIG['HORAS_OFFSET_PANAMA'])
@@ -99,8 +99,8 @@ def obtener_proximo_partido(team_name: str) -> dict:
 
         return {
             "hay_juego": True,
-            "rival": rival_nombre_db,           # Nombre para buscar en JUGADORES_DB
-            "rival_display": rival_nombre,       # Nombre para mostrar en pantalla
+            "rival": rival_nombre_db,           
+            "rival_display": rival_nombre,       
             "rival_sofascore_id": rival_sofascore_id,
             "localia": "Local" if es_local else "Visitante",
             "fecha": fecha_texto,

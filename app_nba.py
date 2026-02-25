@@ -583,13 +583,6 @@ def obtener_datos_partido(nombre_equipo):
     except:
         return None
 
-
-# ============================================================================
-# NOTA: Las funciones obtener_jugadores_lesionados() y scrapear_jugador() 
-# ahora se importan desde logic_nba.py (línea 14)
-# ============================================================================
-
-
 # ============================================================================
 # MACHINE LEARNING MEJORADO V2
 # ============================================================================
@@ -1040,7 +1033,7 @@ def obtener_datos_partido_cached(nombre_equipo):
 with st.sidebar:
     st.markdown("### 🏀 CONTROL PANEL")
     
-    # ── Metadata (con try/except visible) ────────────────────────────────
+    # ── Metadata (con try/except visible)
     try:
         metadata = dm.cargar_metadata()
         if metadata:
@@ -1059,7 +1052,7 @@ with st.sidebar:
     except Exception as e:
         st.caption(f"⚠️ Metadata: {e}")  # muestra el error sin bloquear
 
-    # ── Selector de equipo ────────────────────────────────────────────────
+    # ── Selector de equipo 
     equipo_sel = st.selectbox(
         "Selecciona Equipo",
         sorted(list(JUGADORES_DB.keys())),
@@ -1068,7 +1061,7 @@ with st.sidebar:
 
     st.divider()
 
-    # ── Lesionados (con try/except visible) ───────────────────────────────
+    #  Lesionados 
     st.markdown("### 🏥 ESTADO DEL EQUIPO")
     try:
         lesionados_df = dm.obtener_lesionados_equipo(equipo_sel)
@@ -1123,27 +1116,16 @@ with st.sidebar:
         st.session_state.rival_nombre = None
         st.session_state.incluir_rival = False
 
-    # ── Controles ─────────────────────────────────────────────────────────
+    # ── Controles 
     st.markdown("#### 📊 Partidos a Analizar")
     num_partidos_visualizar = st.slider("Visualizar últimos", min_value=3, max_value=10, value=7)
     st.session_state.num_partidos_viz = num_partidos_visualizar
 
     st.divider()
 
-    # ── BOTÓN — ahora siempre llega aquí ─────────────────────────────────
+    # ── BOTÓN 
     btn_cargar = st.button("🚀 CARGAR DATOS", use_container_width=True, type="primary")
 
-    # ── Debug (opcional) ──────────────────────────────────────────────────
-    if st.checkbox("📊 Ver Info de Datos", key="debug_storage"):
-        try:
-            storage = dm.estadisticas_almacenamiento()
-            st.json(storage)
-        except Exception as e:
-            st.caption(f"Error: {e}")
-    
-    # ── Debug contexto partido (quitar cuando todo funcione) ──────────────
-    if st.checkbox("🔍 Debug partido", key="debug_partido"):
-        st.json(contexto)
 
 # ============================================================================
 # LÓGICA DE CARGA 
@@ -1167,7 +1149,7 @@ if btn_cargar:
                 .dt.days
             )
             
-            # ✅ CARGAR RIVAL SI ESTÁ SELECCIONADO
+            # CARGAR RIVAL SI ESTÁ SELECCIONADO
             equipos_cargados = [equipo_sel]
             
             if st.session_state.get('incluir_rival', False) and st.session_state.get('rival_nombre'):
