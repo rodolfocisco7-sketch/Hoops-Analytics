@@ -15,13 +15,10 @@ from nba_api.stats.endpoints import scoreboardv2
 from logic_nba import scrapear_jugador, obtener_jugadores_lesionados, obtener_proximo_partido
 from config_nba import JUGADORES_DB, TEAM_IDS
 
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+# ── ML: todo viene de ml_predictor ──────────────────────────────────────────
+from ml_predictor import predecir
 
 from curl_cffi import requests
-import xgboost as xgb 
-
 import pytz
 
 
@@ -144,7 +141,6 @@ st.markdown("""
         border-radius: 8px;
     }
     
-    /* SELECTBOX VISIBLE */
     .stSelectbox div[data-baseweb="select"] > div {
         background-color: var(--mid-blue) !important;
         border: 1px solid var(--primary) !important;
@@ -267,8 +263,6 @@ st.markdown("""
 
 
 def mostrar_progreso_detallado(jugador_actual, equipo_actual, progreso_pct, total_jugadores, procesados):
-    """Muestra barra de progreso con detalles del jugador actual"""
-    
     st.markdown(f"""
     <style>
         .progress-card {{
@@ -279,14 +273,12 @@ def mostrar_progreso_detallado(jugador_actual, equipo_actual, progreso_pct, tota
             margin: 20px 0;
             box-shadow: 0 8px 25px rgba(0, 217, 255, 0.2);
         }}
-        
         .progress-header {{
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
         }}
-        
         .current-player {{
             font-size: 24px;
             font-weight: 700;
@@ -295,7 +287,6 @@ def mostrar_progreso_detallado(jugador_actual, equipo_actual, progreso_pct, tota
             align-items: center;
             gap: 10px;
         }}
-        
         .player-badge {{
             background: linear-gradient(135deg, #00D9FF, #00FFA3);
             color: #05161A;
@@ -304,47 +295,21 @@ def mostrar_progreso_detallado(jugador_actual, equipo_actual, progreso_pct, tota
             font-size: 14px;
             font-weight: 600;
         }}
-        
         .progress-stats {{
             display: flex;
             gap: 30px;
             margin-top: 15px;
             flex-wrap: wrap;
         }}
-        
-        .stat-item {{
-            display: flex;
-            flex-direction: column;
-        }}
-        
-        .stat-label {{
-            font-size: 12px;
-            color: #B8D4E0;
-            margin-bottom: 5px;
-        }}
-        
-        .stat-value {{
-            font-size: 20px;
-            font-weight: 700;
-            color: #00D9FF;
-        }}
-        
+        .stat-item {{ display: flex; flex-direction: column; }}
+        .stat-label {{ font-size: 12px; color: #B8D4E0; margin-bottom: 5px; }}
+        .stat-value {{ font-size: 20px; font-weight: 700; color: #00D9FF; }}
         @keyframes slideIn {{
-            from {{
-                transform: translateX(-20px);
-                opacity: 0;
-            }}
-            to {{
-                transform: translateX(0);
-                opacity: 1;
-            }}
+            from {{ transform: translateX(-20px); opacity: 0; }}
+            to {{ transform: translateX(0); opacity: 1; }}
         }}
-        
-        .animated-entry {{
-            animation: slideIn 0.3s ease-out;
-        }}
+        .animated-entry {{ animation: slideIn 0.3s ease-out; }}
     </style>
-    
     <div class="progress-card animated-entry">
         <div class="progress-header">
             <div class="current-player">
@@ -352,7 +317,6 @@ def mostrar_progreso_detallado(jugador_actual, equipo_actual, progreso_pct, tota
                 <span class="player-badge">{equipo_actual}</span>
             </div>
         </div>
-        
         <div class="progress-stats">
             <div class="stat-item">
                 <div class="stat-label">Progreso</div>
@@ -376,7 +340,6 @@ def mostrar_progreso_detallado(jugador_actual, equipo_actual, progreso_pct, tota
 # ============================================================================
 
 def calcular_indice_consistencia(serie):
-    """Calcula el índice de consistencia basado en coeficiente de variación"""
     if len(serie) < 3:
         return "Sin Datos", 0
     cv = serie.std() / serie.mean() if serie.mean() > 0 else 0
@@ -390,16 +353,12 @@ def calcular_indice_consistencia(serie):
 
 
 def calcular_tendencia_reciente(df_jug, metrica, num_partidos_recientes=3):
-    """Calcula si el jugador está mejorando en los últimos N partidos"""
     if len(df_jug) < num_partidos_recientes + 3:
         return "Sin Datos", 0
-    
     ultimos = df_jug.tail(num_partidos_recientes)[metrica].mean()
     previos = df_jug.head(len(df_jug) - num_partidos_recientes).tail(num_partidos_recientes)[metrica].mean()
-    
     diferencia = ultimos - previos
     porcentaje = (diferencia / previos * 100) if previos > 0 else 0
-    
     if porcentaje > 10:
         return "📈 Mejorando", porcentaje
     elif porcentaje < -10:
@@ -408,11 +367,10 @@ def calcular_tendencia_reciente(df_jug, metrica, num_partidos_recientes=3):
         return "➡️ Estable", porcentaje
 
 # ============================================================================
-# FUNCIONES DE GRÁFICAS MEJORADAS
+# FUNCIONES DE GRÁFICAS
 # ============================================================================
 
 def crear_grafica_apilada_mejorada(df_equipo, metrica, titulo, colores_jugadores):
-    """Gráfica apilada con fechas corregidas"""
     df_work = df_equipo.copy().sort_values('Fecha')
     df_work['Fecha_Label'] = df_work['Fecha'].dt.strftime('%d/%m')
     
@@ -429,7 +387,6 @@ def crear_grafica_apilada_mejorada(df_equipo, metrica, titulo, colores_jugadores
         del df_pivot['Fecha']
 
     fig = go.Figure()
-
     for jugador in df_pivot.columns:
         valores = df_pivot[jugador]
         if valores.sum() > 0:
@@ -475,33 +432,22 @@ def crear_grafica_apilada_mejorada(df_equipo, metrica, titulo, colores_jugadores
 
 
 def crear_grafica_individual_mejorada(df_jug, metrica, linea, nombre_jugador):
-    """Gráfica individual con tema oscuro"""
     df_plot = df_jug.copy().sort_values('Fecha')
     df_plot['Fecha_Str'] = df_plot['Fecha'].dt.strftime('%d/%m')
     
     fig = go.Figure()
-    
     fig.add_hline(
-        y=linea,
-        line_dash="dash",
-        line_color="#FFD93D",
-        line_width=2,
-        annotation_text=f"Línea {linea}",
-        annotation_position="top right",
+        y=linea, line_dash="dash", line_color="#FFD93D", line_width=2,
+        annotation_text=f"Línea {linea}", annotation_position="top right",
         annotation_font_color="#FFD93D"
     )
     
     colores_barras = ['#00FFA3' if v >= linea else '#FF6B6B' for v in df_plot[metrica]]
     
     fig.add_trace(go.Bar(
-        x=df_plot['Fecha_Str'],
-        y=df_plot[metrica],
-        marker=dict(
-            color=colores_barras,
-            line=dict(color='rgba(0, 0, 0, 0.4)', width=1.5)
-        ),
-        text=df_plot[metrica].round(1),
-        textposition="outside",
+        x=df_plot['Fecha_Str'], y=df_plot[metrica],
+        marker=dict(color=colores_barras, line=dict(color='rgba(0, 0, 0, 0.4)', width=1.5)),
+        text=df_plot[metrica].round(1), textposition="outside",
         textfont=dict(size=11, color='#E0F4FF'),
         hovertemplate="<b>%{x}</b><br>Valor: %{y:.1f}<extra></extra>",
         name=metrica
@@ -511,18 +457,12 @@ def crear_grafica_individual_mejorada(df_jug, metrica, linea, nombre_jugador):
         fig.add_trace(go.Scatter(
             x=df_plot['Fecha_Str'],
             y=df_plot[metrica].rolling(window=3, min_periods=1).mean(),
-            mode='lines',
-            line=dict(color='#00D9FF', width=2, dash='dot'),
-            name='Tendencia',
-            hovertemplate='Promedio: %{y:.1f}<extra></extra>'
+            mode='lines', line=dict(color='#00D9FF', width=2, dash='dot'),
+            name='Tendencia', hovertemplate='Promedio: %{y:.1f}<extra></extra>'
         ))
     
     fig.update_layout(
-        title=dict(
-            text=f'📊 Evolución de {metrica} - {nombre_jugador}',
-            font=dict(size=18, color='#00FFA3'),
-            x=0.02
-        ),
+        title=dict(text=f'📊 Evolución de {metrica} - {nombre_jugador}', font=dict(size=18, color='#00FFA3'), x=0.02),
         template='plotly_dark',
         paper_bgcolor='rgba(11, 32, 39, 0.5)',
         plot_bgcolor='rgba(11, 32, 39, 0.8)',
@@ -539,23 +479,19 @@ def crear_grafica_individual_mejorada(df_jug, metrica, linea, nombre_jugador):
 # ============================================================================
 
 def obtener_datos_partido(nombre_equipo):
-    """Detecta el próximo juego del equipo"""
     try:
         nba_team = teams.find_teams_by_full_name(nombre_equipo)
         if not nba_team:
             return None
         team_id = nba_team[0]['id']
-        
         contexto = {"hay_juego": False, "rival": None, "localia": None, "fecha": None}
         
         for dias_adelante in range(8):
             try:
                 fecha_busqueda = obtener_fecha_panama() + timedelta(days=dias_adelante)
                 fecha_str = fecha_busqueda.strftime('%m/%d/%Y')
-                
                 sb = scoreboardv2.ScoreboardV2(game_date=fecha_str)
                 juegos = sb.get_data_frames()[0]
-                
                 partido = juegos[(juegos['HOME_TEAM_ID'] == team_id) | (juegos['VISITOR_TEAM_ID'] == team_id)]
                 
                 if not partido.empty:
@@ -563,166 +499,27 @@ def obtener_datos_partido(nombre_equipo):
                     contexto["hay_juego"] = True
                     es_home = row['HOME_TEAM_ID'] == team_id
                     contexto["localia"] = "Local" if es_home else "Visitante"
-                    
                     rival_id = row['VISITOR_TEAM_ID'] if es_home else row['HOME_TEAM_ID']
                     rival_info = teams.find_team_name_by_id(rival_id)
                     contexto["rival"] = rival_info['full_name'] if rival_info else None
-                    
                     if dias_adelante == 0:
                         contexto["fecha"] = "Hoy"
                     elif dias_adelante == 1:
                         contexto["fecha"] = "Mañana"
                     else:
                         contexto["fecha"] = f"En {dias_adelante} días"
-                    
                     return contexto
             except:
                 continue
-        
         return contexto
     except:
         return None
-
-# ============================================================================
-# MACHINE LEARNING MEJORADO V2
-# ============================================================================
-
-def crear_features_ml_v2(df_jugador, target_col='Puntos'):
-    """15 features mejoradas"""
-    df = df_jugador.copy().sort_values('Fecha')
-    features = []
-    targets = []
-    
-    for i in range(3, len(df)):
-        window = df.iloc[max(0, i-7):i]
-        actual_len = len(window)
-        
-        avg_3 = window.tail(3)[target_col].mean()
-        avg_7 = window[target_col].mean()
-        
-        feature_dict = {
-            'avg_3_games': avg_3,
-            'avg_7_games': avg_7,
-            'trend_5': np.polyfit(range(min(5, len(window))), window.tail(5)[target_col].values, 1)[0] if len(window) >= 2 else 0,
-            'std_recent': window[target_col].std() if actual_len > 1 else 0,
-            'coef_var': (window[target_col].std() / window[target_col].mean()) if window[target_col].mean() > 0 else 0,
-            'dias_descanso': df.iloc[i]['Dias_Descanso'] if pd.notna(df.iloc[i]['Dias_Descanso']) else 2,
-            'es_local': 1 if df.iloc[i]['Localia'] == 'Local' else 0,
-            'minutos_avg': window['Minutos'].mean(),
-            'eficiencia_avg': window['Eficiencia'].mean(),
-            'max_recent_3': window.tail(3)[target_col].max(),
-            'min_recent_3': window.tail(3)[target_col].min(),
-            'rango_recent': window.tail(3)[target_col].max() - window.tail(3)[target_col].min(),
-            'racha_positiva': sum(1 for x in window.tail(3)[target_col] if x > window[target_col].mean()),
-            'rendimiento_b2b': window[window['Dias_Descanso'] <= 1][target_col].mean() if len(window[window['Dias_Descanso'] <= 1]) > 0 else window[target_col].mean(),
-            'diff_local_visita': (window[window['Localia']=='Local'][target_col].mean() - window[window['Localia']=='Visitante'][target_col].mean()) if len(window[window['Localia']=='Local']) > 0 and len(window[window['Localia']=='Visitante']) > 0 else 0,
-        }
-        
-        features.append(feature_dict)
-        targets.append(df.iloc[i][target_col])
-    
-    return pd.DataFrame(features), np.array(targets)
-
-
-def entrenar_modelo_v2(df_equipo, jugador_nombre, target_col='Puntos'):
-    """XGBoost optimizado"""
-    df_jug = df_equipo[df_equipo['Jugador'] == jugador_nombre].copy()
-    if len(df_jug) < 5:
-        return None, None, None
-    
-    X, y = crear_features_ml_v2(df_jug, target_col)
-    if len(X) < 2:
-        return None, None, None
-
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    modelo = xgb.XGBRegressor(
-        n_estimators=200,
-        max_depth=5,
-        learning_rate=0.08,
-        subsample=0.85,
-        colsample_bytree=0.85,
-        min_child_weight=2,
-        gamma=0.05,
-        reg_alpha=0.1,
-        reg_lambda=1.0,
-        random_state=42
-    )
-    
-    modelo.fit(X_scaled, y)
-    
-    y_pred = modelo.predict(X_scaled)
-    mae = np.mean(np.abs(y - y_pred))
-    rmse = np.sqrt(np.mean((y - y_pred)**2))
-    
-    importances = dict(zip(X.columns, modelo.feature_importances_))
-    sorted_imp = dict(sorted(importances.items(), key=lambda x: x[1], reverse=True))
-    
-    return modelo, scaler, {
-        'mae': mae,
-        'rmse': rmse,
-        'importance': sorted_imp,
-        'n_samples': len(X)
-    }
-
-
-def predecir_proximo_partido_v2(modelo, scaler, df_jugador, target_col='Puntos', es_local=True, dias_descanso=2):
-    """Predicción con intervalo dinámico"""
-    if modelo is None:
-        return None, None
-    
-    df = df_jugador.copy().sort_values('Fecha')
-    window = df.tail(7)
-    
-    avg_3 = window.tail(3)[target_col].mean()
-    avg_7 = window[target_col].mean()
-    
-    features_prox = {
-        'avg_3_games': avg_3,
-        'avg_7_games': avg_7,
-        'trend_5': np.polyfit(range(min(5, len(window))), window.tail(5)[target_col].values, 1)[0] if len(window) >= 2 else 0,
-        'std_recent': window[target_col].std() if len(window) > 1 else 0,
-        'coef_var': (window[target_col].std() / window[target_col].mean()) if window[target_col].mean() > 0 else 0,
-        'dias_descanso': dias_descanso,
-        'es_local': 1 if es_local else 0,
-        'minutos_avg': window['Minutos'].mean(),
-        'eficiencia_avg': window['Eficiencia'].mean(),
-        'max_recent_3': window.tail(3)[target_col].max(),
-        'min_recent_3': window.tail(3)[target_col].min(),
-        'rango_recent': window.tail(3)[target_col].max() - window.tail(3)[target_col].min(),
-        'racha_positiva': sum(1 for x in window.tail(3)[target_col] if x > window[target_col].mean()),
-        'rendimiento_b2b': window[window['Dias_Descanso'] <= 1][target_col].mean() if len(window[window['Dias_Descanso'] <= 1]) > 0 else window[target_col].mean(),
-        'diff_local_visita': (window[window['Localia']=='Local'][target_col].mean() - window[window['Localia']=='Visitante'][target_col].mean()) if len(window[window['Localia']=='Local']) > 0 and len(window[window['Localia']=='Visitante']) > 0 else 0,
-    }
-    
-    X_prox_scaled = scaler.transform(pd.DataFrame([features_prox]))
-    prediccion = modelo.predict(X_prox_scaled)[0]
-    
-    coef_var = features_prox['coef_var']
-    
-    if coef_var < 0.2:
-        margen = prediccion * 0.15
-    elif coef_var < 0.35:
-        margen = prediccion * 0.25
-    else:
-        margen = prediccion * 0.35
-    
-    intervalo = (max(0, prediccion - margen), prediccion + margen)
-    
-    return prediccion, intervalo
 
 # ============================================================================
 # SISTEMA DE ANÁLISIS DE IMPACTO POR LESIONES
 # ============================================================================
 
 def calcular_impacto_ausencias(df_equipo, jugadores_ausentes, metrica='Puntos'):
-    """
-    Calcula el impacto de jugadores ausentes en el equipo
-    
-    Returns:
-        dict con impacto por métrica y redistribución esperada
-    """
     if not jugadores_ausentes:
         return {'impacto_total': 0, 'redistribucion': {}}
     
@@ -733,10 +530,8 @@ def calcular_impacto_ausencias(df_equipo, jugadores_ausentes, metrica='Puntos'):
         'beneficiarios_principales': []
     }
     
-    # Calcular producción perdida
     for jugador_out in jugadores_ausentes:
         df_jug = df_equipo[df_equipo['Jugador'] == jugador_out]
-        
         if not df_jug.empty:
             stats_perdidas = {
                 'Puntos': df_jug['Puntos'].mean(),
@@ -744,54 +539,32 @@ def calcular_impacto_ausencias(df_equipo, jugadores_ausentes, metrica='Puntos'):
                 'Asistencias': df_jug['Asistencias'].mean(),
                 'Minutos': df_jug['Minutos'].mean()
             }
-            
-            impacto['jugadores_out'].append({
-                'nombre': jugador_out,
-                'stats': stats_perdidas
-            })
-            
+            impacto['jugadores_out'].append({'nombre': jugador_out, 'stats': stats_perdidas})
             for stat, val in stats_perdidas.items():
                 impacto['produccion_perdida'][stat] = impacto['produccion_perdida'].get(stat, 0) + val
     
-    # Identificar beneficiarios (jugadores que históricamente mejoran cuando otros faltan)
     if impacto['jugadores_out']:
         minutos_disponibles = impacto['produccion_perdida'].get('Minutos', 0)
-        
-        # Obtener jugadores activos del equipo
-        equipo_nombre = df_equipo['Equipo'].iloc[0]
         jugadores_activos = [j for j in df_equipo['Jugador'].unique() if j not in jugadores_ausentes]
-        
-        # Calcular quién se beneficia más (top 3 en minutos que no están lesionados)
         df_activos = df_equipo[df_equipo['Jugador'].isin(jugadores_activos)]
         top_beneficiarios = df_activos.groupby('Jugador')['Minutos'].mean().sort_values(ascending=False).head(3)
-        
-        # Redistribuir proporcionalmente
         total_minutos_top3 = top_beneficiarios.sum()
         
         for jugador, minutos_avg in top_beneficiarios.items():
             proporcion = minutos_avg / total_minutos_top3 if total_minutos_top3 > 0 else 0
-            
-            # Estimar aumento en cada stat
             impacto['redistribucion_estimada'][jugador] = {
-                'Puntos': impacto['produccion_perdida'].get('Puntos', 0) * proporcion * 0.7,  # 70% se redistribuye
+                'Puntos': impacto['produccion_perdida'].get('Puntos', 0) * proporcion * 0.7,
                 'Rebotes': impacto['produccion_perdida'].get('Rebotes', 0) * proporcion * 0.7,
                 'Asistencias': impacto['produccion_perdida'].get('Asistencias', 0) * proporcion * 0.7,
                 'Minutos_extra': minutos_disponibles * proporcion
             }
-            
             impacto['beneficiarios_principales'].append(jugador)
     
     return impacto
 
 
-def ajustar_prediccion_por_contexto(prediccion_base, jugador_nombre, df_equipo, 
+def ajustar_prediccion_por_contexto(prediccion_base, jugador_nombre, df_equipo,
                                      lesionados_df, metrica='Puntos'):
-    """
-    Ajusta la predicción considerando lesiones de compañeros y regresos
-    
-    Returns:
-        prediccion_ajustada, dict con explicación del ajuste
-    """
     ajuste_info = {
         'prediccion_original': prediccion_base,
         'ajustes_aplicados': [],
@@ -803,19 +576,13 @@ def ajustar_prediccion_por_contexto(prediccion_base, jugador_nombre, df_equipo,
         return prediccion_base, ajuste_info
     
     equipo_jugador = df_equipo[df_equipo['Jugador'] == jugador_nombre]['Equipo'].iloc[0]
-    
-    # Obtener lesionados del mismo equipo
     jugadores_out = lesionados_df['Jugador'].tolist()
     jugadores_out_equipo = [j for j in jugadores_out if j in JUGADORES_DB.get(equipo_jugador, {}).keys()]
-    
-    # Calcular impacto
     impacto = calcular_impacto_ausencias(df_equipo, jugadores_out_equipo, metrica)
     
-    # AJUSTE 1: Si el jugador está entre los beneficiarios
     if jugador_nombre in impacto.get('beneficiarios_principales', []):
         boost = impacto['redistribucion_estimada'][jugador_nombre][metrica]
         prediccion_ajustada = prediccion_base + boost
-        
         ajuste_info['ajustes_aplicados'].append({
             'tipo': 'Beneficiario de ausencias',
             'jugadores_out': [j['nombre'] for j in impacto['jugadores_out']],
@@ -823,22 +590,15 @@ def ajustar_prediccion_por_contexto(prediccion_base, jugador_nombre, df_equipo,
             'razon': f"Se espera +{boost:.1f} {metrica} por mayor uso"
         })
         ajuste_info['confianza_ajuste'] = 'alta'
-    
-    # AJUSTE 2: Detectar si el jugador viene de lesión (regreso reciente)
     else:
         df_jug = df_equipo[df_equipo['Jugador'] == jugador_nombre].sort_values('Fecha')
-        
         if len(df_jug) >= 2:
-            # Revisar si hay un gap grande entre los últimos partidos (indicador de lesión)
             ultima_fecha = df_jug['Fecha'].iloc[-1]
             penultima_fecha = df_jug['Fecha'].iloc[-2]
             dias_gap = (ultima_fecha - penultima_fecha).days
-            
-            if dias_gap > 10:  # Estuvo fuera más de 10 días
-                # Reducir predicción en primer partido de regreso
-                penalizacion = prediccion_base * 0.15  # 15% de reducción
+            if dias_gap > 10:
+                penalizacion = prediccion_base * 0.15
                 prediccion_ajustada = prediccion_base - penalizacion
-                
                 ajuste_info['ajustes_aplicados'].append({
                     'tipo': 'Regreso de lesión',
                     'dias_fuera': dias_gap,
@@ -852,14 +612,10 @@ def ajustar_prediccion_por_contexto(prediccion_base, jugador_nombre, df_equipo,
             prediccion_ajustada = prediccion_base
     
     ajuste_info['prediccion_final'] = prediccion_ajustada
-    
     return prediccion_ajustada, ajuste_info
 
 
 def mostrar_analisis_lesiones(df_equipo, lesionados_df, equipo_nombre):
-    """
-    Muestra un análisis visual del impacto de lesiones
-    """
     jugadores_out = lesionados_df['Jugador'].tolist()
     jugadores_out_equipo = [j for j in jugadores_out if j in JUGADORES_DB.get(equipo_nombre, {}).keys()]
     
@@ -868,10 +624,7 @@ def mostrar_analisis_lesiones(df_equipo, lesionados_df, equipo_nombre):
         return
     
     impacto = calcular_impacto_ausencias(df_equipo, jugadores_out_equipo)
-    
     st.markdown("#### 🚑 IMPACTO DE AUSENCIAS")
-    
-    # Mostrar jugadores ausentes
     col1, col2 = st.columns(2)
     
     with col1:
@@ -907,37 +660,22 @@ def mostrar_analisis_lesiones(df_equipo, lesionados_df, equipo_nombre):
 
 
 def detectar_regresos_lesion(df_equipo, dias_umbral=10):
-    """
-    Detecta jugadores que regresan de lesión (gaps en fechas)
-    
-    Returns:
-        Lista de jugadores con info de su regreso
-    """
     regresos = []
-    
     for jugador in df_equipo['Jugador'].unique():
         df_jug = df_equipo[df_equipo['Jugador'] == jugador].sort_values('Fecha')
-        
         if len(df_jug) >= 2:
             fechas = df_jug['Fecha'].tolist()
-            
-            # Buscar gaps grandes
             for i in range(1, len(fechas)):
                 dias_gap = (fechas[i] - fechas[i-1]).days
-                
                 if dias_gap > dias_umbral:
-                    # Este jugador estuvo fuera
                     ultimo_partido = fechas[i]
                     dias_desde_regreso = (obtener_fecha_panama().replace(tzinfo=None) - ultimo_partido).days
-                    
-                    if dias_desde_regreso <= 7:  # Regresó hace menos de una semana
+                    if dias_desde_regreso <= 7:
                         stats_pre_lesion = df_jug[df_jug['Fecha'] < fechas[i-1]].tail(3)
                         stats_post_lesion = df_jug[df_jug['Fecha'] >= fechas[i]].tail(3)
-                        
                         if not stats_pre_lesion.empty and not stats_post_lesion.empty:
                             cambio_puntos = stats_post_lesion['Puntos'].mean() - stats_pre_lesion['Puntos'].mean()
                             cambio_minutos = stats_post_lesion['Minutos'].mean() - stats_pre_lesion['Minutos'].mean()
-                            
                             regresos.append({
                                 'jugador': jugador,
                                 'dias_fuera': dias_gap,
@@ -947,25 +685,17 @@ def detectar_regresos_lesion(df_equipo, dias_umbral=10):
                                 'cambio_minutos': cambio_minutos,
                                 'partidos_desde_regreso': len(stats_post_lesion)
                             })
-    
     return regresos
 
 
 def mostrar_regresos_lesion(df_equipo):
-    """
-    Muestra análisis de jugadores que regresan de lesión
-    """
     regresos = detectar_regresos_lesion(df_equipo)
-    
     if not regresos:
         return
-    
     st.markdown("#### 🩹 JUGADORES EN RECUPERACIÓN")
-    
     for reg in regresos:
         color = "warning" if reg['cambio_puntos'] < -3 else "info"
         icono = "⚠️" if reg['cambio_puntos'] < -3 else "ℹ️"
-        
         st.markdown(f"""
         <div class="alert-{color}">
             {icono} <b>{reg['jugador']}</b> - Regresó hace {reg['dias_desde_regreso']} días<br>
@@ -977,36 +707,27 @@ def mostrar_regresos_lesion(df_equipo):
         </div>
         """, unsafe_allow_html=True)
 
+
 def mostrar_importancia_features(metricas_modelo):
-    """Visualiza features importantes"""
     if metricas_modelo and 'importance' in metricas_modelo:
         st.markdown("#### 🎯 Features Más Importantes")
-        
         importances = metricas_modelo['importance']
-        
         df_imp = pd.DataFrame({
             'Feature': list(importances.keys()),
             'Importancia': list(importances.values())
         }).sort_values('Importancia', ascending=False).head(10)
         
         fig = go.Figure(go.Bar(
-            x=df_imp['Importancia'],
-            y=df_imp['Feature'],
+            x=df_imp['Importancia'], y=df_imp['Feature'],
             orientation='h',
             marker=dict(color=df_imp['Importancia'], colorscale='Viridis'),
-            text=df_imp['Importancia'].round(3),
-            textposition='auto'
+            text=df_imp['Importancia'].round(3), textposition='auto'
         ))
-        
         fig.update_layout(
-            title="Top 10 Features",
-            template='plotly_dark',
-            height=400,
-            paper_bgcolor='rgba(11, 32, 39, 0.5)',
-            plot_bgcolor='rgba(11, 32, 39, 0.8)',
+            title="Top 10 Features", template='plotly_dark', height=400,
+            paper_bgcolor='rgba(11, 32, 39, 0.5)', plot_bgcolor='rgba(11, 32, 39, 0.8)',
             margin=dict(l=150, r=40, t=60, b=40)
         )
-        
         st.plotly_chart(fig, use_container_width=True)
 
 # ============================================================================
@@ -1017,10 +738,6 @@ socket.setdefaulttimeout(5)
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def obtener_datos_partido_cached(nombre_equipo):
-    """
-    Obtiene próximo partido via SofaScore (confiable en Streamlit Cloud).
-    Cache de 30 min — no bloquea el sidebar en cada rerun.
-    """
     try:
         return obtener_proximo_partido(nombre_equipo)
     except Exception as e:
@@ -1033,7 +750,6 @@ def obtener_datos_partido_cached(nombre_equipo):
 with st.sidebar:
     st.markdown("### 🏀 CONTROL PANEL")
     
-    # ── Metadata (con try/except visible)
     try:
         metadata = dm.cargar_metadata()
         if metadata:
@@ -1050,9 +766,8 @@ with st.sidebar:
                 </div>
                 """, unsafe_allow_html=True)
     except Exception as e:
-        st.caption(f"⚠️ Metadata: {e}")  # muestra el error sin bloquear
+        st.caption(f"⚠️ Metadata: {e}")
 
-    # ── Selector de equipo 
     equipo_sel = st.selectbox(
         "Selecciona Equipo",
         sorted(list(JUGADORES_DB.keys())),
@@ -1061,7 +776,6 @@ with st.sidebar:
 
     st.divider()
 
-    #  Lesionados 
     st.markdown("### 🏥 ESTADO DEL EQUIPO")
     try:
         lesionados_df = dm.obtener_lesionados_equipo(equipo_sel)
@@ -1080,7 +794,6 @@ with st.sidebar:
     st.divider()
 
     st.markdown("### 🆚 PRÓXIMO PARTIDO")
-
     contexto = {"hay_juego": False, "rival": None, "localia": None, "fecha": None}
     try:
         with st.spinner("Buscando partido..."):
@@ -1102,7 +815,7 @@ with st.sidebar:
         </div>
         ''', unsafe_allow_html=True)
 
-        st.session_state.rival_nombre = contexto['rival']          # nombre en JUGADORES_DB
+        st.session_state.rival_nombre = contexto['rival']
         st.session_state.rival_display = nombre_mostrar
         st.session_state.localia = contexto['localia']
         st.session_state.event_id = contexto.get('event_id')
@@ -1116,24 +829,20 @@ with st.sidebar:
         st.session_state.rival_nombre = None
         st.session_state.incluir_rival = False
 
-    # ── Controles 
     st.markdown("#### 📊 Partidos a Analizar")
     num_partidos_visualizar = st.slider("Visualizar últimos", min_value=3, max_value=10, value=7)
     st.session_state.num_partidos_viz = num_partidos_visualizar
 
     st.divider()
-
-    # ── BOTÓN 
     btn_cargar = st.button("🚀 CARGAR DATOS", use_container_width=True, type="primary")
 
 
 # ============================================================================
-# LÓGICA DE CARGA 
+# LÓGICA DE CARGA
 # ============================================================================
 
 if btn_cargar:
     with st.spinner("⚡ Cargando datos desde base de datos..."):
-        # Cargar equipo principal
         df_equipo = dm.obtener_stats_equipo(equipo_sel)
         
         if df_equipo.empty:
@@ -1141,15 +850,11 @@ if btn_cargar:
             st.info("💡 **Ejecuta el scraper inicial:**\n```bash\npython scraper_automatico.py\n```")
             st.warning("⏰ O espera a que GitHub Actions ejecute automáticamente (3 veces al día)")
         else:
-            # Calcular días de descanso
             df_equipo = df_equipo.sort_values(['Jugador', 'Fecha'])
             df_equipo['Dias_Descanso'] = (
-                df_equipo.groupby('Jugador')['Fecha']
-                .diff()
-                .dt.days
+                df_equipo.groupby('Jugador')['Fecha'].diff().dt.days
             )
             
-            # CARGAR RIVAL SI ESTÁ SELECCIONADO
             equipos_cargados = [equipo_sel]
             
             if st.session_state.get('incluir_rival', False) and st.session_state.get('rival_nombre'):
@@ -1159,9 +864,7 @@ if btn_cargar:
                 if not df_rival.empty:
                     df_rival = df_rival.sort_values(['Jugador', 'Fecha'])
                     df_rival['Dias_Descanso'] = (
-                        df_rival.groupby('Jugador')['Fecha']
-                        .diff()
-                        .dt.days
+                        df_rival.groupby('Jugador')['Fecha'].diff().dt.days
                     )
                     df_final = pd.concat([df_equipo, df_rival], ignore_index=True)
                     equipos_cargados.append(rival)
@@ -1188,10 +891,7 @@ if "df_equipo" in st.session_state:
     num_viz = st.session_state.get('num_partidos_viz', 7)
     equipos_cargados = st.session_state.get('equipos_cargados', [equipo_sel])
     
-    if len(equipos_cargados) > 1:
-        titulo_header = f"{equipos_cargados[0]} vs {equipos_cargados[1]}"
-    else:
-        titulo_header = equipos_cargados[0]
+    titulo_header = f"{equipos_cargados[0]} vs {equipos_cargados[1]}" if len(equipos_cargados) > 1 else equipos_cargados[0]
     
     st.markdown(f"""
 <style>
@@ -1199,55 +899,19 @@ if "df_equipo" in st.session_state:
         from {{ opacity: 0; transform: scale(0.95); }}
         to {{ opacity: 1; transform: scale(1); }}
     }}
-    
     .main-header {{
-        text-align: center;
-        padding: clamp(15px, 3vw, 30px);
+        text-align: center; padding: clamp(15px, 3vw, 30px);
         background: linear-gradient(135deg, #00D9FF, #0A4D68);
-        border-radius: 15px;
-        margin-bottom: 20px;
+        border-radius: 15px; margin-bottom: 20px;
         animation: fadeInScale 0.5s ease-out;
         box-shadow: 0 8px 25px rgba(0, 217, 255, 0.3);
     }}
-    
-    .brand-logo {{
-        font-size: clamp(40px, 8vw, 80px);
-        margin-bottom: 5px;
-        filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
-    }}
-    
-    .brand-name {{
-        margin: 0;
-        font-size: clamp(24px, 5vw, 42px);
-        color: #FFD700;
-        font-family: 'Arial Black', sans-serif;
-        text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
-        letter-spacing: 2px;
-    }}
-    
-    .brand-subtitle {{
-        margin: 5px 0 0 0;
-        font-size: clamp(14px, 2.5vw, 18px);
-        color: #E0F4FF;
-        font-weight: 600;
-        letter-spacing: 1px;
-    }}
-    
-    .team-matchup {{
-        margin-top: 15px;
-        padding: 12px 20px;
-        background: rgba(5, 22, 26, 0.4);
-        border-radius: 25px;
-        display: inline-block;
-    }}
-    
-    .team-name {{
-        font-size: clamp(18px, 4vw, 28px);
-        color: #00FFA3;
-        font-weight: bold;
-    }}
+    .brand-logo {{ font-size: clamp(40px, 8vw, 80px); margin-bottom: 5px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); }}
+    .brand-name {{ margin: 0; font-size: clamp(24px, 5vw, 42px); color: #FFD700; font-family: 'Arial Black', sans-serif; text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5); letter-spacing: 2px; }}
+    .brand-subtitle {{ margin: 5px 0 0 0; font-size: clamp(14px, 2.5vw, 18px); color: #E0F4FF; font-weight: 600; letter-spacing: 1px; }}
+    .team-matchup {{ margin-top: 15px; padding: 12px 20px; background: rgba(5, 22, 26, 0.4); border-radius: 25px; display: inline-block; }}
+    .team-name {{ font-size: clamp(18px, 4vw, 28px); color: #00FFA3; font-weight: bold; }}
 </style>
-
 <div class="main-header">
     <div class="brand-logo">🏀</div>
     <h1 class="brand-name">CANAL HOOPS ANALYTICS</h1>
@@ -1262,17 +926,13 @@ if "df_equipo" in st.session_state:
 
     with tab1:
         st.markdown("### 📈 Distribución de Carga por Partido")
-        
         fechas_unicas = sorted(df['Fecha'].unique(), reverse=True)[:num_viz]
         df_viz = df[df['Fecha'].isin(fechas_unicas)]
-        
         equipo_visualizar = st.selectbox("Selecciona equipo", equipos_cargados, key="equipo_tab1")
         df_equipo_viz = df_viz[df_viz["Equipo"] == equipo_visualizar]
-        
         jugadores_unicos = df_equipo_viz['Jugador'].unique()
         colores = ['#00D9FF', '#00FFA3', '#6B9EB0', '#FFD93D', '#FF6B6B', '#9B59B6']
         colores_jugadores = {jug: colores[i % len(colores)] for i, jug in enumerate(jugadores_unicos)}
-        
         st.plotly_chart(crear_grafica_apilada_mejorada(df_equipo_viz, "Puntos", f"📊 Puntos: {equipo_visualizar}", colores_jugadores), use_container_width=True)
         st.plotly_chart(crear_grafica_apilada_mejorada(df_equipo_viz, "Rebotes", f"🏀 Rebotes: {equipo_visualizar}", colores_jugadores), use_container_width=True)
         st.plotly_chart(crear_grafica_apilada_mejorada(df_equipo_viz, "Asistencias", f"🎯 Asistencias: {equipo_visualizar}", colores_jugadores), use_container_width=True)
@@ -1280,7 +940,6 @@ if "df_equipo" in st.session_state:
     with tab2:
         st.markdown("### 🔍 Análisis Individual")
         
-        # 1. SELECTORES
         col_sel1, col_sel2, col_sel3 = st.columns([2, 2, 1])
         with col_sel1:
             jugador_analisis = st.selectbox("Jugador", sorted(df["Jugador"].unique()), key="jug_t2")
@@ -1295,9 +954,7 @@ if "df_equipo" in st.session_state:
         if not df_jug.empty:
             info_jug = JUGADORES_DB.get(df_jug.iloc[0]["Equipo"], {}).get(jugador_analisis, {})
             
-            # 2. INFO DEL JUGADOR Y PROMEDIOS
             col_info, col_stats = st.columns([1, 2])
-            
             with col_info:
                 st.markdown(f"""
                 <div class="stat-card">
@@ -1307,7 +964,6 @@ if "df_equipo" in st.session_state:
                     <p style='margin:5px 0; font-size:18px; color:#E0F4FF;'>📏 {info_jug.get('alt', 0)} cm</p>
                     <p style='margin:5px 0; font-size:18px; color:#E0F4FF;'>🏀 {df_jug.iloc[0]["Equipo"]}</p>
                 </div>""", unsafe_allow_html=True)
-                
                 consistencia, cv_val = calcular_indice_consistencia(df_jug[metrica_focus])
                 st.metric("Consistencia", consistencia, f"CV: {cv_val:.3f}")
 
@@ -1315,9 +971,8 @@ if "df_equipo" in st.session_state:
                 st.markdown(f"#### 📊 Promedios (Últimos {len(df_jug)} PJ)")
                 c_m = st.columns(5)
                 m_nombres = ["Puntos", "Rebotes", "Asistencias", "Minutos", "Eficiencia"]
-                m_iconos = ["🎯", "🏀", "🤝", "⏱️", "⚡"]
+                m_iconos  = ["🎯", "🏀", "🤝", "⏱️", "⚡"]
                 m_colores = ["#00D9FF", "#00FFA3", "#6B9EB0", "#FFD93D", "#9B59B6"]
-                
                 for col, m_n, icono, color in zip(c_m, m_nombres, m_iconos, m_colores):
                     with col:
                         val = df_jug[m_n].mean()
@@ -1328,48 +983,53 @@ if "df_equipo" in st.session_state:
                             <p style='margin:0; font-size:10px; color:#E0F4FF;'>{m_n}</p>
                         </div>""", unsafe_allow_html=True)
 
-            # 3. PREDICCIÓN IA
+            # ── PREDICCIÓN IA ────────────────────────────────────────────────
             st.divider()
             st.markdown("#### 🤖 PREDICCIÓN IA")
             
             col_ml1, col_ml2 = st.columns(2)
             
+            es_loc_bool  = st.session_state.get('localia', 'Local') == 'Local'
+            d_descanso   = df_jug_completo['Dias_Descanso'].iloc[-1]
+            d_descanso   = d_descanso if pd.notna(d_descanso) else 2
+
+            with st.spinner("Calculando predicción..."):
+                resultado_ml = predecir(
+                    df, jugador_analisis,
+                    target_col=metrica_focus,
+                    es_local=es_loc_bool,
+                    dias_descanso=d_descanso
+                )
+
             with col_ml1:
-                with st.spinner("Entrenando XGBoost..."):
-                    modelo, scaler, metricas = entrenar_modelo_v2(df, jugador_analisis, target_col=metrica_focus)
-                
-                if modelo is not None:
-                    st.success("✅ Modelo Optimizado")
-                    confianza = max(0.0, min(1.0, 1 - (metricas['mae']/df_jug[metrica_focus].mean())))
-                    st.progress(confianza, text=f"Confianza: {confianza*100:.1f}%")
+                if resultado_ml:
+                    nivel_label = "✅ XGBoost (25 features)" if resultado_ml['nivel'] == 'xgboost' else "⚡ Ensemble (fallback)"
+                    st.success(nivel_label)
+                    confianza_pct = resultado_ml['confianza']
+                    st.progress(confianza_pct / 100, text=f"Confianza: {confianza_pct:.1f}%")
                     
-                    with st.expander("📊 Ver Importancia Features"):
-                        mostrar_importancia_features(metricas)
-                
+                    metricas_mod = resultado_ml.get('metricas_modelo', {})
+                    if resultado_ml['nivel'] == 'xgboost' and 'importance' in metricas_mod:
+                        with st.expander("📊 Ver Importancia Features"):
+                            mostrar_importancia_features(metricas_mod)
+                    elif resultado_ml['nivel'] == 'fallback':
+                        ajustes = metricas_mod.get('ajustes', {})
+                        if ajustes.get('items'):
+                            with st.expander("📊 Ajustes aplicados"):
+                                for item in ajustes['items']:
+                                    st.caption(f"• {item}")
+
             with col_ml2:
-                if modelo is not None:
-                    es_loc_bool = st.session_state.get('localia', 'Local') == 'Local'
-                    d_descanso = df_jug_completo['Dias_Descanso'].iloc[-1] if not pd.isna(df_jug_completo['Dias_Descanso'].iloc[-1]) else 2
-                    
-                    pred_base, _ = predecir_proximo_partido_v2(
-                        modelo, scaler, df_jug_completo, 
-                        target_col=metrica_focus, 
-                        es_local=es_loc_bool, 
-                        dias_descanso=d_descanso
-                    )
-                    
+                if resultado_ml:
+                    pred_base = resultado_ml['prediccion']
                     lesionados_equipo = st.session_state.get('lesionados_equipo', pd.DataFrame())
                     pred_ajustada, ajuste_info = ajustar_prediccion_por_contexto(
-                        pred_base, 
-                        jugador_analisis, 
-                        df, 
-                        lesionados_equipo, 
-                        metrica_focus
+                        pred_base, jugador_analisis, df, lesionados_equipo, metrica_focus
                     )
                     
                     diferencia = abs(pred_ajustada - pred_base)
                     hay_ajuste = diferencia > 0.5
-                    
+
                     st.markdown(f"""
                     <div style='text-align:center; padding:20px; background:linear-gradient(135deg, #00D9FF, #00FFA3); border-radius:12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);'>
                           <p style='margin:0; font-size:14px; color:#05161A; font-weight:bold;'>PROYECCIÓN IA {'⚠️ AJUSTADA' if hay_ajuste else ''}</p>
@@ -1381,65 +1041,52 @@ if "df_equipo" in st.session_state:
                     if hay_ajuste and ajuste_info['ajustes_aplicados']:
                         with st.expander("🔍 Ver Detalles del Ajuste"):
                             for ajuste in ajuste_info['ajustes_aplicados']:
-                                st.markdown(f"""
-                                **Tipo:** {ajuste['tipo']}  
-                                **Razón:** {ajuste['razon']}
-                                """)
-                            
+                                st.markdown(f"**Tipo:** {ajuste['tipo']}  \n**Razón:** {ajuste['razon']}")
                                 if 'jugadores_out' in ajuste:
                                     st.markdown(f"**Jugadores ausentes:** {', '.join(ajuste['jugadores_out'])}")
                 else:
-                    st.warning("⚠️ No hay suficientes datos para entrenar el modelo (mínimo 5 partidos)")
+                    st.warning("⚠️ No hay suficientes datos para predecir (mínimo 3 partidos)")
 
-            # 4. GRÁFICA DE HISTORIAL
+            # ── GRÁFICA HISTORIAL ────────────────────────────────────────────
             st.divider()
             st.markdown(f"#### 📈 Historial de {metrica_focus}")
             st.plotly_chart(
-                crear_grafica_individual_mejorada(df_jug, metrica_focus, linea_over, jugador_analisis), 
+                crear_grafica_individual_mejorada(df_jug, metrica_focus, linea_over, jugador_analisis),
                 use_container_width=True
             )
 
-            # 4.5 ANÁLISIS DEFENSIVO DEL RIVAL
+            # ── ANÁLISIS DEFENSIVO RIVAL ─────────────────────────────────────
             rival_nombre = st.session_state.get('rival_nombre')
             if rival_nombre and rival_nombre in df['Equipo'].unique():
                 st.divider()
                 st.markdown("#### 🆚 ANÁLISIS DEL RIVAL")
-
                 from logic_nba import calcular_stats_defensivas_rival
-
                 stats_rival = calcular_stats_defensivas_rival(df, rival_nombre, metrica_focus)
 
                 if stats_rival['disponible']:
                     col_r1, col_r2, col_r3 = st.columns(3)
-
                     with col_r1:
                         st.markdown(f'''
                         <div class="stat-card">
                             <p style="color:#B8D4E0; font-size:12px; margin:0;">PRODUCCIÓN TOTAL RIVAL</p>
                             <h2 style="color:#FF6B6B; margin:5px 0;">{stats_rival["produccion_total_rival"]}</h2>
                             <p style="color:#E0F4FF; font-size:12px;">{metrica_focus} combinados</p>
-                        </div>
-                        ''', unsafe_allow_html=True)
-
+                        </div>''', unsafe_allow_html=True)
                     with col_r2:
                         st.markdown(f'''
                         <div class="stat-card">
                             <p style="color:#B8D4E0; font-size:12px; margin:0;">PROMEDIO POR JUGADOR</p>
                             <h2 style="color:#FFD93D; margin:5px 0;">{stats_rival["promedio_por_jugador"]}</h2>
                             <p style="color:#E0F4FF; font-size:12px;">Jugadores con datos: {stats_rival["total_jugadores_data"]}</p>
-                        </div>
-                        ''', unsafe_allow_html=True)
-
+                        </div>''', unsafe_allow_html=True)
                     with col_r3:
                         st.markdown(f'''
                         <div class="stat-card">
                             <p style="color:#B8D4E0; font-size:12px; margin:0;">NIVEL RIVAL</p>
                             <h2 style="color:#00FFA3; margin:5px 0; font-size:20px;">{stats_rival["nivel_rival"]}</h2>
                             <p style="color:#E0F4FF; font-size:12px;">Pace ~{stats_rival["pace_semanal"]} partidos/semana</p>
-                        </div>
-                        ''', unsafe_allow_html=True)
+                        </div>''', unsafe_allow_html=True)
 
-                    # Top jugadores del rival
                     if stats_rival['top_jugadores']:
                         st.markdown(f"**Top amenazas del rival en {metrica_focus}:**")
                         tops = stats_rival['top_jugadores']
@@ -1448,71 +1095,55 @@ if "df_equipo" in st.session_state:
                         for idx, (jug, val) in enumerate(tops.items()):
                             with cols_top[idx]:
                                 st.markdown(f'''
-                                <div style="background:rgba(255,107,107,0.1); padding:10px; border-radius:8px;
-                                            border-left:3px solid #FF6B6B; text-align:center;">
+                                <div style="background:rgba(255,107,107,0.1); padding:10px; border-radius:8px; border-left:3px solid #FF6B6B; text-align:center;">
                                     <p style="margin:0; font-size:11px; color:#B8D4E0;">{medallas[idx]} {jug}</p>
                                     <h3 style="margin:5px 0; color:#FF6B6B;">{val}</h3>
-                                </div>
-                                ''', unsafe_allow_html=True)
+                                </div>''', unsafe_allow_html=True)
                 else:
                     st.info(f"💡 {stats_rival['mensaje']} — Carga el rival con '📊 Comparar con rival' en el sidebar")
-            # 5. ANÁLISIS DE CONTEXTO
-        
+
+            # ── ANÁLISIS DE CONTEXTO ─────────────────────────────────────────
             st.divider()
             st.markdown("#### 🏥 ANÁLISIS DE CONTEXTO DEL EQUIPO")
-            
             col_ctx1, col_ctx2 = st.columns(2)
-            
             with col_ctx1:
                 equipo_jugador = df_jug.iloc[0]["Equipo"]
                 lesionados_equipo = st.session_state.get('lesionados_equipo', pd.DataFrame())
-                
                 if not lesionados_equipo.empty:
                     mostrar_analisis_lesiones(df, lesionados_equipo, equipo_jugador)
                 else:
                     st.info("✅ No hay lesiones reportadas")
-            
             with col_ctx2:
                 mostrar_regresos_lesion(df)
 
-
     with tab3:
         st.markdown("### 🏆 Top 3 Comparativas")
-
         df_top = df.groupby('Jugador').head(num_viz)
         promedios = df_top.groupby('Jugador').agg({
-            'Puntos': 'mean',
-            'Rebotes': 'mean',
-            'Asistencias': 'mean',
-            'Equipo': 'first'
+            'Puntos': 'mean', 'Rebotes': 'mean',
+            'Asistencias': 'mean', 'Equipo': 'first'
         }).reset_index()
 
-        # ── Si hay rival cargado, mostrar comparativa entre equipos
         rival_nombre = st.session_state.get('rival_nombre')
         hay_rival_en_datos = rival_nombre and rival_nombre in df['Equipo'].unique()
 
         if hay_rival_en_datos:
             st.markdown(f"#### ⚔️ {equipo_sel} vs {rival_nombre}")
-
             for metrica_tab3 in ['Puntos', 'Rebotes', 'Asistencias']:
                 col_eq, col_vs, col_riv = st.columns([5, 1, 5])
-
-                top_eq = promedios[promedios['Equipo'] == equipo_sel].nlargest(3, metrica_tab3)
+                top_eq  = promedios[promedios['Equipo'] == equipo_sel].nlargest(3, metrica_tab3)
                 top_riv = promedios[promedios['Equipo'] == rival_nombre].nlargest(3, metrica_tab3)
-
-                iconos = {'Puntos': '🎯', 'Rebotes': '🏀', 'Asistencias': '🤝'}
+                iconos  = {'Puntos': '🎯', 'Rebotes': '🏀', 'Asistencias': '🤝'}
                 medallas = ["🥇", "🥈", "🥉"]
 
                 with col_eq:
                     st.markdown(f"**{iconos[metrica_tab3]} {equipo_sel}**")
                     for j, (_, row) in enumerate(top_eq.iterrows()):
                         st.markdown(f'''
-                        <div style="background:rgba(0,217,255,0.1); padding:10px; border-radius:8px;
-                                    margin-bottom:8px; border-left:4px solid #00D9FF;">
+                        <div style="background:rgba(0,217,255,0.1); padding:10px; border-radius:8px; margin-bottom:8px; border-left:4px solid #00D9FF;">
                             <span style="color:#E0F4FF;">{medallas[j]} {row["Jugador"]}</span>
                             <span style="float:right; color:#00D9FF; font-weight:bold;">{row[metrica_tab3]:.1f}</span>
-                        </div>
-                        ''', unsafe_allow_html=True)
+                        </div>''', unsafe_allow_html=True)
 
                 with col_vs:
                     st.markdown("<div style='text-align:center; padding-top:30px; color:#FFD93D; font-weight:bold; font-size:20px;'>VS</div>", unsafe_allow_html=True)
@@ -1521,23 +1152,17 @@ if "df_equipo" in st.session_state:
                     st.markdown(f"**{iconos[metrica_tab3]} {rival_nombre}**")
                     for j, (_, row) in enumerate(top_riv.iterrows()):
                         st.markdown(f'''
-                        <div style="background:rgba(255,107,107,0.1); padding:10px; border-radius:8px;
-                                    margin-bottom:8px; border-left:4px solid #FF6B6B;">
+                        <div style="background:rgba(255,107,107,0.1); padding:10px; border-radius:8px; margin-bottom:8px; border-left:4px solid #FF6B6B;">
                             <span style="color:#E0F4FF;">{medallas[j]} {row["Jugador"]}</span>
                             <span style="float:right; color:#FF6B6B; font-weight:bold;">{row[metrica_tab3]:.1f}</span>
-                        </div>
-                        ''', unsafe_allow_html=True)
-
+                        </div>''', unsafe_allow_html=True)
                 st.divider()
-
         else:
-            # Vista original sin rival
             categorias = [
-                {"t": "🎯 ANOTADORES", "m": "Puntos", "c": "#00D9FF"},
-                {"t": "🏀 REBOTEADORES", "m": "Rebotes", "c": "#00FFA3"},
-                {"t": "🤝 ASISTIDORES", "m": "Asistencias", "c": "#9B59B6"}
+                {"t": "🎯 ANOTADORES",   "m": "Puntos",      "c": "#00D9FF"},
+                {"t": "🏀 REBOTEADORES", "m": "Rebotes",     "c": "#00FFA3"},
+                {"t": "🤝 ASISTIDORES",  "m": "Asistencias", "c": "#9B59B6"}
             ]
-
             cols = st.columns(3)
             for i, cat in enumerate(categorias):
                 with cols[i]:
@@ -1553,12 +1178,11 @@ if "df_equipo" in st.session_state:
                                 <span style="font-size:20px;">{medallas[j]}</span>
                             </div>
                             <span style="color:{cat["c"]}; font-size:24px; font-weight:bold;">{row[cat["m"]]:.1f}</span>
-                        </div>
-                        ''', unsafe_allow_html=True)
+                        </div>''', unsafe_allow_html=True)
 
             if rival_nombre:
                 st.info(f"💡 Marca '📊 Comparar con rival' en el sidebar y recarga para ver **{rival_nombre}** aquí")
-
+   
     # streamlit run app_nba.py
     # .\Hoops_Analytics\Scripts\Activate.ps1
 

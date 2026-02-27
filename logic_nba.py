@@ -268,19 +268,29 @@ def scrapear_jugador(player_id, nombre_jugador, equipo_sel, cantidad=7):
                 eficiencia = puntos / tiros if tiros > 0 else 0
 
                 lista_stats.append({
-                    "Jugador": nombre_jugador,
-                    "Equipo": equipo_sel,
-                    "Posicion": posicion,
-                    "Altura": altura,
-                    "Fecha": fecha_local,
-                    "Puntos": puntos,
-                    "Rebotes": s.get('rebounds', 0),
-                    "Asistencias": s.get('assists', 0),
-                    "Minutos": round(s.get('secondsPlayed', 0) / 60, 1),
-                    "Tiros": tiros,
-                    "Eficiencia": round(eficiencia, 2),
-                    "Localia": localia,
-                    "Timestamp": ev.get('startTimestamp')
+                "Jugador":    nombre_jugador,
+                "Equipo":     equipo_sel,
+                "Posicion":   posicion,
+                "Altura":     altura,
+                "Fecha":      fecha_local,
+                "Localia":    localia,
+                "Timestamp":  ev.get('startTimestamp'),
+                "Puntos":     puntos,
+                "Rebotes":    s.get('rebounds', 0),
+                "Asistencias":s.get('assists', 0),
+                "Minutos":    round(s.get('secondsPlayed', 0) / 60, 1),
+                "Tiros":      tiros,
+                "Eficiencia": round(eficiencia, 2),
+                "FG_Pct":     fg_pct,
+                "3P_Pct":     tp_pct,
+                "Triples":    triples_e,
+                "Robos":      s.get('steals', 0),
+                "Tapones":    s.get('blocks', 0),
+                "Perdidas":   s.get('turnovers', 0),
+                "PlusMinus":  s.get('plusMinus', 0),
+                "Reb_Off":    s.get('offensiveRebounds', 0),
+                "Reb_Def":    s.get('defensiveRebounds', 0),
+                "FT_Pct":     ft_pct,
                 })
     except Exception as e:
         print(f"❌ Error en {nombre_jugador}: {str(e)}")
