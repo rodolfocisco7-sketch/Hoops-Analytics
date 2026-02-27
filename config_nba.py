@@ -139,7 +139,6 @@ JUGADORES_DB = {
   "Evan Mobley":        {"id": 1133830,   "pos": "PF",    "alt": 211},
   "Jarrett Allen":      {"id": 885222,    "pos": "C",     "alt": 206},
   "Jaylon Tyson":       {"id": 1381333,   "pos": "SF",    "alt": 201},
-  "Ty Jerome":          {"id": 988301,    "pos": "PG",    "alt": 196},
   "Sam Merrill":        {"id": 1396473,   "pos": "SG",    "alt": 193},
   "Dean Wade":          {"id": 987560,    "pos": "PF/C",  "alt": 206},
   "Tyrese Proctor":     {"id": 1430914,   "pos": "PG",    "alt": 196},
