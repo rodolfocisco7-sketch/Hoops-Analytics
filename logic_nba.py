@@ -1,4 +1,3 @@
-# logic_nba.py
 import pandas as pd
 import time
 import random
@@ -19,16 +18,13 @@ def obtener_fecha_panama():
 
 
 # ============================================================================
-# PRÓXIMO PARTIDO 
+# PRÓXIMO PARTIDO
 # ============================================================================
 
 def obtener_proximo_partido(team_name: str) -> dict:
     """
     Obtiene el próximo partido del equipo desde SofaScore.
     Más confiable que nba_api en Streamlit Cloud.
-    
-    Returns:
-        dict con: hay_juego, rival, rival_sofascore_id, localia, fecha, event_id
     """
     from config_nba import TEAM_IDS
 
@@ -58,8 +54,6 @@ def obtener_proximo_partido(team_name: str) -> dict:
         data = response.json()
 
         eventos = data.get('events', [])
-
-        # Filtrar solo partidos NBA
         nba_eventos = [
             ev for ev in eventos
             if ev.get('tournament', {}).get('name') == 'NBA'
@@ -78,10 +72,8 @@ def obtener_proximo_partido(team_name: str) -> dict:
         rival_nombre = rival_info.get('name', 'Desconocido')
         rival_sofascore_id = rival_info.get('id')
 
-        # Mapear nombre SofaScore → nombre en JUGADORES_DB
         rival_nombre_db = _mapear_nombre_equipo(rival_nombre)
 
-        # Fecha en hora
         ts = ev.get('startTimestamp', 0)
         fecha_utc = datetime.utcfromtimestamp(ts)
         fecha_panama = fecha_utc - timedelta(hours=CONFIG['HORAS_OFFSET_PANAMA'])
@@ -93,14 +85,14 @@ def obtener_proximo_partido(team_name: str) -> dict:
         elif dias_diff == 1:
             fecha_texto = f"Mañana {fecha_panama.strftime('%H:%M')}"
         elif dias_diff < 0:
-            fecha_texto = f"En curso"
+            fecha_texto = "En curso"
         else:
             fecha_texto = fecha_panama.strftime('%d/%m %H:%M')
 
         return {
             "hay_juego": True,
-            "rival": rival_nombre_db,           
-            "rival_display": rival_nombre,       
+            "rival": rival_nombre_db,
+            "rival_display": rival_nombre,
             "rival_sofascore_id": rival_sofascore_id,
             "localia": "Local" if es_local else "Visitante",
             "fecha": fecha_texto,
@@ -113,10 +105,7 @@ def obtener_proximo_partido(team_name: str) -> dict:
 
 
 def _mapear_nombre_equipo(nombre_sofascore: str) -> str:
-    """
-    Mapea nombres de equipos de SofaScore al formato de JUGADORES_DB.
-    SofaScore a veces usa nombres cortos o distintos.
-    """
+    """Mapea nombres de SofaScore al formato de JUGADORES_DB."""
     MAPA = {
         "LA Clippers": "Los Angeles Clippers",
         "LA Lakers": "Los Angeles Lakers",
@@ -149,7 +138,6 @@ def _mapear_nombre_equipo(nombre_sofascore: str) -> str:
         "Dallas": "Dallas Mavericks",
         "Houston": "Houston Rockets",
     }
-    # Primero intenta match exacto
     for clave, valor in MAPA.items():
         if clave.lower() in nombre_sofascore.lower() or nombre_sofascore.lower() in clave.lower():
             return valor
@@ -162,14 +150,7 @@ def _mapear_nombre_equipo(nombre_sofascore: str) -> str:
 
 def calcular_stats_defensivas_rival(df_all: pd.DataFrame, equipo_rival: str, metrica: str = 'Puntos') -> dict:
     """
-    Calcula cuánto permite el rival en promedio en la métrica dada.
-    Basado en los datos scrapeados de los jugadores del rival.
-    
-    Nota: Como los datos son de jugadores propios, usamos el promedio
-    del rival como referencia de su nivel ofensivo para estimar su defensa.
-    
-    Returns:
-        dict con estadísticas defensivas del rival
+    Calcula estadísticas del rival como referencia de su nivel.
     """
     df_rival = df_all[df_all['Equipo'] == equipo_rival].copy()
 
@@ -179,16 +160,14 @@ def calcular_stats_defensivas_rival(df_all: pd.DataFrame, equipo_rival: str, met
             'mensaje': f'Sin datos del rival ({equipo_rival})'
         }
 
-    # Stats del rival (nivel ofensivo — referencia de qué tan bueno es el equipo)
     promedio_rival = df_rival.groupby('Jugador')[metrica].mean()
     total_equipo = promedio_rival.sum()
     top_jugadores = promedio_rival.nlargest(3)
 
-    # Pace estimado: partidos jugados / días desde primer partido
     fechas = pd.to_datetime(df_rival['Fecha'])
     dias_rango = (fechas.max() - fechas.min()).days + 1
     partidos_totales = df_rival['Timestamp'].nunique()
-    pace_aprox = round(partidos_totales / max(dias_rango, 1) * 7, 1)  # partidos por semana
+    pace_aprox = round(partidos_totales / max(dias_rango, 1) * 7, 1)
 
     return {
         'disponible': True,
@@ -204,11 +183,10 @@ def calcular_stats_defensivas_rival(df_all: pd.DataFrame, equipo_rival: str, met
 
 
 def _clasificar_nivel(total: float, metrica: str) -> str:
-    """Clasifica el nivel del rival según su producción total"""
     umbrales = {
-        'Puntos': [(120, '🔴 Ofensa élite'), (110, '🟡 Ofensa sólida'), (0, '🟢 Ofensa débil')],
-        'Rebotes': [(45, '🔴 Gran rebote'), (40, '🟡 Buen rebote'), (0, '🟢 Débil en rebote')],
-        'Asistencias': [(28, '🔴 Gran asistencia'), (24, '🟡 Buen paseo'), (0, '🟢 Débil pasando')]
+        'Puntos':      [(120, '🔴 Ofensa élite'), (110, '🟡 Ofensa sólida'), (0, '🟢 Ofensa débil')],
+        'Rebotes':     [(45,  '🔴 Gran rebote'),  (40,  '🟡 Buen rebote'),   (0, '🟢 Débil en rebote')],
+        'Asistencias': [(28,  '🔴 Gran asistencia'), (24, '🟡 Buen paseo'),  (0, '🟢 Débil pasando')]
     }
     for umbral, label in umbrales.get(metrica, []):
         if total >= umbral:
@@ -217,12 +195,17 @@ def _clasificar_nivel(total: float, metrica: str) -> str:
 
 
 # ============================================================================
-# SCRAPER DE JUGADORES
+# SCRAPER DE JUGADORES — con campos extendidos del mismo JSON
 # ============================================================================
 
 def scrapear_jugador(player_id, nombre_jugador, equipo_sel, cantidad=7):
     """
     Extrae estadísticas del jugador desde SofaScore.
+
+    Campos extraídos del mismo endpoint (sin llamadas extra):
+        Base:    Puntos, Rebotes, Asistencias, Minutos, Tiros, Eficiencia, Localia
+        Nuevos:  FG_Pct, 3P_Pct, Triples, Robos, Tapones, Perdidas,
+                 PlusMinus, Reb_Off, Reb_Def, FT_Pct
     """
     from config_nba import JUGADORES_DB
 
@@ -230,7 +213,7 @@ def scrapear_jugador(player_id, nombre_jugador, equipo_sel, cantidad=7):
     scraper = requests.Session()
 
     info_jugador = JUGADORES_DB.get(equipo_sel, {}).get(nombre_jugador, {})
-    altura = info_jugador.get("alt", 0)
+    altura   = info_jugador.get("alt", 0)
     posicion = info_jugador.get("pos", "N/A")
 
     headers = {
@@ -248,12 +231,12 @@ def scrapear_jugador(player_id, nombre_jugador, equipo_sel, cantidad=7):
         eventos = [ev for ev in eventos_todos if ev.get('tournament', {}).get('name') == 'NBA'][:cantidad]
 
         for ev in eventos:
-            ev_id = ev.get('id')
+            ev_id     = ev.get('id')
             fecha_utc = pd.to_datetime(ev.get('startTimestamp'), unit='s')
             fecha_local = fecha_utc - pd.Timedelta(hours=CONFIG['HORAS_OFFSET_PANAMA'])
 
             es_local = equipo_sel in ev.get('homeTeam', {}).get('name', '')
-            localia = "Local" if es_local else "Visitante"
+            localia  = "Local" if es_local else "Visitante"
 
             url_stats = f"https://api.sofascore.com/api/v1/event/{ev_id}/player/{player_id}/statistics"
             time.sleep(random.uniform(CONFIG['DELAY_MIN'], CONFIG['DELAY_MAX']))
@@ -262,12 +245,27 @@ def scrapear_jugador(player_id, nombre_jugador, equipo_sel, cantidad=7):
             stat_data = response_stats.json()
 
             s = stat_data.get('statistics', {})
-            if s and s.get('secondsPlayed', 0) > 0:
-                puntos = s.get('points', 0)
-                tiros = s.get('fieldGoalsAttempted', 0)
-                eficiencia = puntos / tiros if tiros > 0 else 0
+            if not s or s.get('secondsPlayed', 0) <= 0:
+                continue
 
-                lista_stats.append({
+            # ── Campos base ───────────────────────────────────────────────
+            puntos      = s.get('points', 0)
+            tiros       = s.get('fieldGoalsAttempted', 0)
+            tiros_e     = s.get('fieldGoalsMade', 0)
+            triples_int = s.get('threePointersAttempted', 0)
+            triples_e   = s.get('threePointersMade', 0)
+            tl_int      = s.get('freeThrowsAttempted', 0)
+            tl_e        = s.get('freeThrowsMade', 0)
+
+            eficiencia  = round(puntos / tiros, 2) if tiros > 0 else 0.0
+
+            # ── Porcentajes (mismo JSON, cero coste extra) ─────────────────
+            fg_pct = round(tiros_e   / tiros,       3) if tiros       > 0 else 0.0
+            tp_pct = round(triples_e / triples_int, 3) if triples_int > 0 else 0.0
+            ft_pct = round(tl_e      / tl_int,      3) if tl_int      > 0 else 0.0
+
+            lista_stats.append({
+                # Identificación
                 "Jugador":    nombre_jugador,
                 "Equipo":     equipo_sel,
                 "Posicion":   posicion,
@@ -275,12 +273,14 @@ def scrapear_jugador(player_id, nombre_jugador, equipo_sel, cantidad=7):
                 "Fecha":      fecha_local,
                 "Localia":    localia,
                 "Timestamp":  ev.get('startTimestamp'),
+                # Stats base
                 "Puntos":     puntos,
                 "Rebotes":    s.get('rebounds', 0),
                 "Asistencias":s.get('assists', 0),
                 "Minutos":    round(s.get('secondsPlayed', 0) / 60, 1),
                 "Tiros":      tiros,
                 "Eficiencia": round(eficiencia, 2),
+                # Stats nuevas — del mismo JSON
                 "FG_Pct":     fg_pct,
                 "3P_Pct":     tp_pct,
                 "Triples":    triples_e,
@@ -291,7 +291,8 @@ def scrapear_jugador(player_id, nombre_jugador, equipo_sel, cantidad=7):
                 "Reb_Off":    s.get('offensiveRebounds', 0),
                 "Reb_Def":    s.get('defensiveRebounds', 0),
                 "FT_Pct":     ft_pct,
-                })
+            })
+
     except Exception as e:
         print(f"❌ Error en {nombre_jugador}: {str(e)}")
 
@@ -303,9 +304,7 @@ def scrapear_jugador(player_id, nombre_jugador, equipo_sel, cantidad=7):
 # ============================================================================
 
 def obtener_jugadores_lesionados(team_name):
-    """
-    Obtiene jugadores lesionados desde SofaScore.
-    """
+    """Obtiene jugadores lesionados desde SofaScore."""
     from config_nba import TEAM_IDS
 
     headers = {
@@ -325,11 +324,11 @@ def obtener_jugadores_lesionados(team_name):
 
         if data.get('events'):
             event_id = data['events'][0]['id']
-            home_id = data['events'][0]['homeTeam']['id']
-            is_home = home_id == team_id
+            home_id  = data['events'][0]['homeTeam']['id']
+            is_home  = home_id == team_id
             team_key = 'home' if is_home else 'away'
 
-            lineup_url = f"https://api.sofascore.com/api/v1/event/{event_id}/lineups"
+            lineup_url  = f"https://api.sofascore.com/api/v1/event/{event_id}/lineups"
             lineup_data = session.get(lineup_url, headers=headers, impersonate="chrome120", timeout=10).json()
 
             missing = lineup_data.get(team_key, {}).get('missingPlayers', [])
@@ -337,8 +336,8 @@ def obtener_jugadores_lesionados(team_name):
                 p_info = player.get('player', {})
                 lesionados.append({
                     'Jugador': p_info.get('name', 'N/A'),
-                    'Razon': player.get('reason', 'Unknown'),
-                    'Equipo': team_name
+                    'Razon':   player.get('reason', 'Unknown'),
+                    'Equipo':  team_name
                 })
     except Exception as e:
         print(f"⚠️ Error lesionados {team_name}: {e}")
