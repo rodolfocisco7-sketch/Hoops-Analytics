@@ -31,9 +31,9 @@ class ScraperOptimizado:
         # ⚡ CONFIGURACIÓN OPTIMIZADA
         self.config = {
             'partidos_por_jugador': 10,     
-            'delay_jugadores': 0.25,         
-            'delay_equipos': 0.8,            
-            'timeout_minutos': 80           
+            'delay_jugadores': 0.10,         
+            'delay_equipos': 0.50,            
+            'timeout_minutos': 100           
         }
         self.tiempo_inicio = None
     
