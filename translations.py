@@ -220,6 +220,10 @@ texts = {
 }
 
 def t(key, **kwargs):
-    lang = st.session_state.get('lang', 'es')
+    try:
+        import streamlit as st
+        lang = st.session_state.get('lang', 'es')
+    except:
+        lang = 'es'
     texto = texts.get(lang, texts["es"]).get(key, key)
     return texto.format(**kwargs) if kwargs else texto
