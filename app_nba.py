@@ -311,7 +311,7 @@ with st.sidebar:
             icono_estado = "✅" if hace_horas < 4 else "⏰"
             st.markdown(f"""<div class="alert-{color_estado}">{icono_estado} <b>{t('ultima_actualizacion')}:</b><br><small>{momento} — {dt.strftime('%d/%m')} ({hace_horas:.1f}h)</small></div>""", unsafe_allow_html=True)
     except Exception as e:
-    st.caption(f"⚠️ Metadata: {e}")
+        st.caption(f"⚠️ Metadata: {e}")
 
     # ── Selector de equipo ───────────────────────────────────────────────────
     equipo_sel = st.selectbox(t('selecciona_equipo'), sorted(list(JUGADORES_DB.keys())), key="equipo_sidebar")
