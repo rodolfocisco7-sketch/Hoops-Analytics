@@ -299,17 +299,19 @@ with st.sidebar:
 
     # ── Metadata ─────────────────────────────────────────────────────────────
     try:
-        metadata = dm.cargar_metadata()
-        if metadata:
-            ultima = metadata.get('ultima_actualizacion','')
-            if ultima:
-                dt = datetime.fromisoformat(ultima)
-                hace_horas = (datetime.now()-dt).total_seconds()/3600
-                color_estado = "success" if hace_horas<2 else "info" if hace_horas<6 else "warning"
-                icono_estado = "✅" if hace_horas<2 else "ℹ️" if hace_horas<6 else "⏰"
-                st.markdown(f"""<div class="alert-{color_estado}">{icono_estado} <b>{t('ultima_actualizacion')}:</b><br><small>{dt.strftime('%d/%m %H:%M')} ({hace_horas:.1f}h)</small></div>""", unsafe_allow_html=True)
-    except Exception as e:
-        st.caption(f"⚠️ Metadata: {e}")
+    metadata = dm.cargar_metadata()
+    if metadata:
+        ultima = metadata.get('ultima_actualizacion','')
+        if ultima:
+            dt = datetime.fromisoformat(ultima)
+            hace_horas = (datetime.now()-dt).total_seconds()/3600
+            hora_panama = dt.hour - 5
+            momento = "🌅 Mañana" if hora_panama < 12 else "🌆 Tarde"
+            color_estado = "success" if hace_horas < 4 else "warning"
+            icono_estado = "✅" if hace_horas < 4 else "⏰"
+            st.markdown(f"""<div class="alert-{color_estado}">{icono_estado} <b>{t('ultima_actualizacion')}:</b><br><small>{momento} — {dt.strftime('%d/%m')} ({hace_horas:.1f}h)</small></div>""", unsafe_allow_html=True)
+except Exception as e:
+    st.caption(f"⚠️ Metadata: {e}")
 
     # ── Selector de equipo ───────────────────────────────────────────────────
     equipo_sel = st.selectbox(t('selecciona_equipo'), sorted(list(JUGADORES_DB.keys())), key="equipo_sidebar")

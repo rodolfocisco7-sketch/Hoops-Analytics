@@ -33,7 +33,7 @@ class ScraperOptimizado:
             'partidos_por_jugador': 10,     
             'delay_jugadores': 0.10,         
             'delay_equipos': 0.50,            
-            'timeout_minutos': 100           
+            'timeout_minutos': 120           
         }
         self.tiempo_inicio = None
     

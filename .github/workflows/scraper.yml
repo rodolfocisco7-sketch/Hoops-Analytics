@@ -2,8 +2,8 @@ name: NBA Data Scraper
 
 on:
   schedule:
-    - cron: '0 19 * * *'   # 2:00 PM Panamá
-    - cron: '0 5 * * *'    # 12:00 PM Panamá
+  - cron: '0 11 * * *'   # 6am Panamá (11am UTC)
+  - cron: '0 19 * * *'   # 2pm Panamá (7pm UTC)
   workflow_dispatch:
 
 # 🟢 SOLUCIÓN 1: Damos permiso explícito para escribir en el repo
