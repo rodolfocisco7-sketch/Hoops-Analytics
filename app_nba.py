@@ -306,7 +306,7 @@ with st.sidebar:
             dt = datetime.fromisoformat(ultima)
             hace_horas = (datetime.now()-dt).total_seconds()/3600
             hora_panama = dt.hour - 5
-            momento = "🌅 Mañana" if hora_panama < 12 else "🌆 Tarde"
+            momento = "🌅 Sunrise" if hora_panama < 12 else "🌆 Sunset"
             color_estado = "success" if hace_horas < 4 else "warning"
             icono_estado = "✅" if hace_horas < 4 else "⏰"
             st.markdown(f"""<div class="alert-{color_estado}">{icono_estado} <b>{t('ultima_actualizacion')}:</b><br><small>{momento} — {dt.strftime('%d/%m')} ({hace_horas:.1f}h)</small></div>""", unsafe_allow_html=True)
